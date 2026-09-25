@@ -26,7 +26,7 @@
 | **Gemini 3.8 Flash TTS** | **Relevant, but not for the live conversation.** It takes about 13 s to first token. Use it for pre-rendered officer audio: the drill library, offline practice, "hear a strong answer", and marketing demos. See §3. |
 | **Transcripts and delivery analysis** | **Gemini 3.5 Transcribe** runs after the interview. It gives word timestamps for pause and pace analysis. Users can correct their transcript, because West-African-accented ASR is still error-prone. |
 | **Stack** | Next.js 16 on Vercel, Supabase (Postgres, RLS, Storage, Auth), LiveKit Cloud (WebRTC/Opus) with a Gemini Live agent worker, Inngest for jobs, Paystack for Mobile Money, and PostHog plus Sentry. |
-| **Pricing** | An **Interview Pass** (one-time payment, valid until your interview date) paid with MoMo. No subscription, because a visa interview is a one-time event. There is a free Case Scan and a free short mock. |
+| **Pricing** | A **GHS 349 Interview Pass** (one-time payment, unlimited fair-use practice until your interview date) paid with MoMo. There's also a free tier, a GHS 149 Sprint, a GHS 599 Family Pass and a GHS 899 Expert tier. No subscriptions and no outcome-based pricing. About 75% contribution margin. See [`PRICING.md`](PRICING.md). |
 | **Trust rule** | We never promise approval, never write fake answers, and never imply US government affiliation. Real results come from rehearsing *your own true case* until you can say it clearly in 20 seconds. |
 | **Design** | One idea runs through the whole brand: **the window**. The look is editorial, cinematic and warm, with Ghanaian photography from a commissioned shoot, one signature interaction, and a performance budget that still passes Core Web Vitals on a mid-range Android on MTN 4G. |
 | **SEO/GEO** | First-party data is the moat: a live Accra wait-time tracker, a database of reported questions, and guides reviewed by former consular officers. Pages open with direct answers and use structured data and strong entity signals. Treat `llms.txt` as optional; Google doesn't use it. |
@@ -386,7 +386,7 @@ Assume 8 full mocks at 4 min (each with a Director plan, a few cents), 40 drills
 - Grading and extraction ≈ $0.30
 - LiveKit ≈ $0.30
 
-**Total: under about $2 per user**, before TTS doubles in 2027. The drill audio is pre-rendered once and shared. Gross margin at the suggested price is above 85%.
+**Total: under about $2 per user**, before TTS doubles in 2027. The drill audio is pre-rendered once and shared. After 20% VAT and Paystack's 1.95%, the Pass contributes about 75% of its price. Even a fair-use-capped power user stays profitable (see [`PRICING.md`](PRICING.md) §4).
 
 ---
 
@@ -491,13 +491,29 @@ Track:
 
 ---
 
-## 8. Go-to-market and pricing (to test, not final)
-- **Free:** Case Scan, one 90-second Real-mode mock with a summary debrief, and 10 drills.
-- **Interview Pass** (one-time, valid until the interview date plus 7 days): unlimited mocks, full debriefs, Readiness, the day-of plan and WhatsApp drills. Price it well below a local consultant's hour and below the $185 MRV fee. Test around **GHS 150–300**.
-- **Pass + Expert Review:** one live 20-minute review with a trained coach or former-officer advisor. Test around **GHS 600–900**.
-- **For agencies and schools:** counsellor dashboards, seats sold in bulk, and cohort readiness tracking.
+## 8. Go-to-market and pricing
+
+**Full pricing model, unit economics and pricing tests: [`PRICING.md`](PRICING.md).** In summary:
+- **Free:** full Case Scan, one 90-second mock and 5 drills.
+- **Sprint:** GHS 149 for 3 mocks. The full amount counts toward a Pass upgrade.
+- **Interview Pass ⭐:** GHS 349, with unlimited fair-use practice until your interview date + 7 days. That's about 3.9% of F-1 government fees.
+- **Family Pass:** GHS 599, including joint-interview mode.
+- **Pass + Expert:** GHS 899, including a 20-minute human mock.
+- **Gift a Pass** for diaspora relatives: $29.
+- **Institutional seats:** GHS 199–249.
+- **Launch price:** GHS 249 for the first 1,000 passes.
+- **Trust policies:**
+  - a 7-day refund
+  - Second Attempt (the pass reactivates free after a refusal)
+  - no auto-renewals
+  - never outcome-based pricing
+- **Margins:**
+  - About 75% contribution on the Pass after VAT, Paystack fees and COGS.
+  - Services must register for VAT from day one under Act 1151.
+
+**Go-to-market:**
 - **Timing:** peaks come in May–August (F-1 for the fall intake) and November–December (the spring intake and holiday B1/B2 travel). Line up content and PR 6–8 weeks ahead of each.
-- **Referrals:** give MoMo credit to both sides, triggered when a friend buys a pass (not when they're approved), so we never reward the outcome itself.
+- **Referrals:** GHS 40 to each side, paid when the friend *buys*, never on approval.
 
 ---
 
