@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export default async function Login(props: PageProps<"/login">) {
   if (!features.supabase) redirect("/setup");
   const { next } = await props.searchParams;
-  const safeNext = typeof next === "string" && next.startsWith("/app") ? next : "/app";
+  const safeNext = typeof next === "string" && /^\/(app|admin)(\/|$)/.test(next) ? next : "/app";
   return (
     <main id="main" className="grain relative flex min-h-screen items-center justify-center bg-ink px-4 text-white">
       <div className="w-full max-w-sm">

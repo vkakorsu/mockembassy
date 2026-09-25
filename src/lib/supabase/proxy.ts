@@ -21,7 +21,8 @@ export async function updateSession(request: NextRequest) {
   const { data } = await supabase.auth.getClaims();
   const signedIn = Boolean(data?.claims?.sub);
 
-  if (!signedIn && request.nextUrl.pathname.startsWith("/app")) {
+  const { pathname } = request.nextUrl;
+  if (!signedIn && (pathname.startsWith("/app") || pathname.startsWith("/admin"))) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("next", request.nextUrl.pathname);

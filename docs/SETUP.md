@@ -23,6 +23,15 @@ The app runs without any keys. Each feature shows a "not configured" state until
 5. **Storage:** the `documents` and `recordings` buckets and their owner-only policies are created by migration `20260926000003_app.sql`.
 6. **Document deletion:** `vercel.json` runs `/api/cron/cleanup` daily. It deletes documents past `delete_after` (30 days) from both Storage and the database. Set `CRON_SECRET` in Vercel so only the cron can call it.
 
+## Admin dashboard (`/admin`)
+- **Apply migration `20260926000005_admin.sql`** (the audit log). Until it's applied, sensitive actions are blocked: viewing case facts, refunds, comped passes and role changes.
+- **Make yourself an admin.** Sign in once, then run this in the Supabase SQL editor:
+  `update public.profiles set role = 'admin' where phone_e164 like '%24XXXXXXX';`
+- **Access control:**
+  - Anyone who isn't an admin gets a 404 at `/admin`.
+  - Every sensitive action needs a written reason, which is stored in the audit log.
+  - Case facts only appear for 10 minutes after the reason has been logged.
+
 ## 2. Gemini
 - `GEMINI_API_KEY`: from Google AI Studio. **Use a paid-tier key**, so prompts and documents aren't used for training.
 - `GEMINI_LIVE_MODEL` (default `gemini-3.8-live`) and `GEMINI_FLASH_MODEL` (default `gemini-3.8-flash`). **Check both ids against the Gemini models page.** They were written from the launch announcements, not tested against the API.
