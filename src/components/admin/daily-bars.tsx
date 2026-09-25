@@ -16,7 +16,7 @@ export function DailyBars({ data, label }: { data: { day: string; value: number 
   const fmt = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 
   return (
-    <figure className="rounded-3xl border border-line bg-raised p-5">
+    <figure className="doc p-5">
       <figcaption className="text-sm text-muted">{label}</figcaption>
       <div className="relative mt-3">
         <svg viewBox={`0 0 ${W} ${H + 18}`} className="w-full" role="img" aria-label={label}>
@@ -30,7 +30,7 @@ export function DailyBars({ data, label }: { data: { day: string; value: number 
                 {d.value > 0 && (
                   <path
                     d={`M${x},${H} V${H - h + 4} q0,-4 4,-4 H${x + bw - 4} q4,0 4,4 V${H} Z`}
-                    fill="var(--gold)"
+                    fill="var(--ink)"
                     opacity={hover === null || hover === i ? 1 : 0.45}
                   />
                 )}
@@ -42,7 +42,7 @@ export function DailyBars({ data, label }: { data: { day: string; value: number 
         </svg>
         {hover !== null && (
           <div
-            className="pointer-events-none absolute -top-2 whitespace-nowrap rounded-lg border border-line bg-bg px-2.5 py-1.5 text-xs shadow-lg"
+            className="pointer-events-none absolute -top-2 whitespace-nowrap rounded-[3px] border border-line bg-bg px-2.5 py-1.5 text-xs shadow-lg"
             style={{ left: `${((hover + 0.5) / data.length) * 100}%`, transform: "translate(-50%, -100%)" }}
           >
             <span className="text-muted">{fmt(data[hover].day)}</span> · <span className="font-medium tabular">{data[hover].value}</span>

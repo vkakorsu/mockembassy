@@ -1,6 +1,6 @@
 export function Stat({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
-    <div className="rounded-3xl border border-line bg-raised p-5">
+    <div className="doc p-5">
       <p className="text-xs uppercase tracking-[0.16em] text-muted">{label}</p>
       <p className="font-display mt-2 text-4xl tabular">{value}</p>
       {sub && <p className="mt-1 text-xs text-muted">{sub}</p>}
@@ -11,7 +11,7 @@ export function Stat({ label, value, sub }: { label: string; value: string | num
 export function Section({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
   return (
     <section className="mt-10">
-      <h2 className="font-display text-2xl">{title}</h2>
+      <h2 className="font-display text-2xl uppercase">{title}</h2>
       {note && <p className="mt-1 max-w-3xl text-sm text-muted">{note}</p>}
       <div className="mt-4">{children}</div>
     </section>
@@ -21,7 +21,7 @@ export function Section({ title, note, children }: { title: string; note?: strin
 export function Table({ head, rows, empty = "Nothing yet." }: { head: string[]; rows: React.ReactNode[][]; empty?: string }) {
   if (!rows.length) return <p className="text-sm text-muted">{empty}</p>;
   return (
-    <div className="overflow-x-auto rounded-2xl border border-line">
+    <div className="overflow-x-auto rounded-[4px] border border-line">
       <table className="w-full text-left text-sm">
         <thead className="bg-fg/[0.03] text-xs uppercase tracking-wider text-muted">
           <tr>

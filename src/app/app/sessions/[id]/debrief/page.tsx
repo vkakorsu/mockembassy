@@ -25,7 +25,7 @@ interface TurnScores {
 function Score({ label, v }: { label: string; v?: number }) {
   return (
     <div className="text-center">
-      <p className="font-display text-2xl tabular">{v ?? "–"}</p>
+      <p className="font-display text-2xl uppercase tabular">{v ?? "–"}</p>
       <p className="text-[11px] uppercase tracking-wider text-muted">{label}</p>
     </div>
   );
@@ -62,7 +62,7 @@ export default async function DebriefPage(props: PageProps<"/app/sessions/[id]/d
       <div className="grid gap-6 lg:grid-cols-[1fr_1.6fr]">
         <div className="space-y-6">
           <Card>
-            <h2 className="font-display text-2xl">Why</h2>
+            <h2 className="font-display text-2xl uppercase">Why</h2>
             <ul className="mt-3 space-y-2 text-sm">
               {(s.decision_reasons ?? []).map((r: string) => (
                 <li key={r}>{r}</li>
@@ -70,7 +70,7 @@ export default async function DebriefPage(props: PageProps<"/app/sessions/[id]/d
             </ul>
           </Card>
           <Card>
-            <h2 className="font-display text-2xl">Fix these first</h2>
+            <h2 className="font-display text-2xl uppercase">Fix these first</h2>
             {grading ? (
               <p className="mt-2 text-sm text-muted">Reviewing your answers…</p>
             ) : s.debrief_status === "failed" ? (
@@ -87,13 +87,13 @@ export default async function DebriefPage(props: PageProps<"/app/sessions/[id]/d
             )}
           </Card>
           <Card>
-            <h2 className="font-display text-2xl">Did this feel real?</h2>
+            <h2 className="font-display text-2xl uppercase">Did this feel real?</h2>
             <div className="mt-3 flex gap-2">
               {[1, 2, 3, 4, 5].map((n) => (
                 <form key={n} action={rateSession.bind(null, id, n)}>
                   <button
                     aria-label={`${n} out of 5`}
-                    className={`size-10 rounded-full border text-sm ${s.realism_rating === n ? "border-ink bg-ink text-paper" : "border-line hover:border-fg/40"}`}
+                    className={`size-10 rounded-[3px] border text-sm ${s.realism_rating === n ? "border-ink bg-ink text-on-ink" : "border-line hover:border-fg/40"}`}
                   >
                     {n}
                   </button>
@@ -101,7 +101,7 @@ export default async function DebriefPage(props: PageProps<"/app/sessions/[id]/d
               ))}
             </div>
           </Card>
-          <Link href={`/app/cases/${s.case_id}`} className="inline-block rounded-full bg-gold px-5 py-2.5 text-sm font-medium text-ink">
+          <Link href={`/app/cases/${s.case_id}`} className="inline-block rounded-[3px] bg-ink px-5 py-2.5 text-sm font-semibold text-on-ink hover:bg-stamp">
             Next officer →
           </Link>
         </div>
@@ -128,7 +128,7 @@ export default async function DebriefPage(props: PageProps<"/app/sessions/[id]/d
                 <p className="font-display mt-3 text-xl">&ldquo;{t.officer_text}&rdquo;</p>
                 <p className="mt-3 text-sm leading-relaxed text-muted">{answer || <em>(no answer)</em>}</p>
                 {sc.llm && (
-                  <div className="mt-4 grid grid-cols-4 gap-2 rounded-2xl border border-line py-3">
+                  <div className="mt-4 grid grid-cols-4 gap-2 rounded-[4px] border border-line py-3">
                     <Score label="Direct" v={sc.llm.directness} />
                     <Score label="Specific" v={sc.llm.specificity} />
                     <Score label="Consistent" v={sc.llm.consistency} />
@@ -138,12 +138,12 @@ export default async function DebriefPage(props: PageProps<"/app/sessions/[id]/d
                 {!!t.red_flags?.length && (
                   <ul className="mt-3 flex flex-wrap gap-2">
                     {t.red_flags.map((f: string) => (
-                      <li key={f} className="rounded-full bg-refused/10 px-2.5 py-1 text-xs text-refused">{f}</li>
+                      <li key={f} className="rounded-[3px] bg-refused/10 px-2.5 py-1 text-xs text-refused">{f}</li>
                     ))}
                   </ul>
                 )}
                 {sc.stronger_answer && (
-                  <div className="mt-4 rounded-2xl border border-approved/30 bg-approved/5 p-4">
+                  <div className="mt-4 rounded-[4px] border border-approved/30 bg-approved/5 p-4">
                     <p className="text-xs text-muted">Your answer, stronger (only your facts)</p>
                     <p className="mt-1 text-sm leading-relaxed">{sc.stronger_answer}</p>
                   </div>

@@ -63,3 +63,15 @@ begin
   end;
   raise notice 'RLS tests passed';
 end $$;
+
+-- admin invite: an invited email becomes admin on sign-up; others don't
+reset role;
+insert into public.admin_invites (email) values ('boss@example.com');
+insert into auth.users (id, email) values ('00000000-0000-0000-0000-0000000000cc', 'Boss@Example.com'), ('00000000-0000-0000-0000-0000000000dd', 'someone@example.com');
+do $$
+begin
+  if (select role from public.profiles where id = '00000000-0000-0000-0000-0000000000cc') <> 'admin' then raise exception 'invite did not grant admin'; end if;
+  if (select role from public.profiles where id = '00000000-0000-0000-0000-0000000000dd') <> 'applicant' then raise exception 'non-invited user got admin'; end if;
+  if (select email from public.profiles where id = '00000000-0000-0000-0000-0000000000cc') <> 'boss@example.com' then raise exception 'email not stored lowercase'; end if;
+  raise notice 'admin invite tests passed';
+end $$;

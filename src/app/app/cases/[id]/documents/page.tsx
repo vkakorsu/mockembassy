@@ -28,7 +28,7 @@ export default async function Documents(props: PageProps<"/app/cases/[id]/docume
         used.
       </PageTitle>
       {!features.gemini && (
-        <p className="mb-6 rounded-2xl border border-line p-4 text-sm text-muted">
+        <p className="mb-6 rounded-[4px] border border-line p-4 text-sm text-muted">
           Automatic reading isn&rsquo;t configured yet (GEMINI_API_KEY). You can still upload and type your facts in by hand.
         </p>
       )}
@@ -37,7 +37,7 @@ export default async function Documents(props: PageProps<"/app/cases/[id]/docume
           <DocumentUploader caseId={id} userId={user.id} visaType={caseRow.visa_type} supabaseUrl={env.supabaseUrl!} publishableKey={env.supabasePublishableKey!} />
         </Card>
         <Card>
-          <h2 className="font-display text-2xl">Uploaded</h2>
+          <h2 className="font-display text-2xl uppercase">Uploaded</h2>
           {(docs ?? []).length === 0 ? (
             <p className="mt-2 text-sm text-muted">Nothing yet.</p>
           ) : (
@@ -58,7 +58,7 @@ export default async function Documents(props: PageProps<"/app/cases/[id]/docume
               ))}
             </ul>
           )}
-          <Link href={`/app/cases/${id}/profile`} className="mt-6 inline-block rounded-full bg-gold px-5 py-2.5 text-sm font-medium text-ink">
+          <Link href={`/app/cases/${id}/profile`} className="mt-6 inline-block rounded-[3px] bg-ink px-5 py-2.5 text-sm font-semibold text-on-ink hover:bg-stamp">
             Review and confirm facts →
           </Link>
         </Card>

@@ -26,10 +26,10 @@ export default function Setup() {
       </Link>
       <h1 className="font-display mt-10 text-5xl">Setup</h1>
       <p className="mt-3 text-muted">Add these in Vercel → Project → Settings → Environment Variables, or in .env.local. Then redeploy.</p>
-      <ul className="mt-8 divide-y divide-line rounded-2xl border border-line bg-raised">
+      <ul className="mt-8 divide-y divide-line rounded-[4px] border border-line bg-raised">
         {rows().map((r) => (
           <li key={r.name} className="flex items-start gap-4 p-5">
-            <span className={`mt-1 size-2.5 shrink-0 rounded-full ${r.ok ? "bg-approved" : "bg-refused"}`} aria-hidden />
+            <span className={`mt-1 size-2.5 shrink-0 rounded-[3px] ${r.ok ? "bg-approved" : "bg-refused"}`} aria-hidden />
             <div>
               <p className="font-medium">
                 {r.name} <span className="sr-only">{r.ok ? "configured" : "missing"}</span>

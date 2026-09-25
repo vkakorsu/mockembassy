@@ -19,7 +19,7 @@ export default async function Dashboard() {
         <div className="space-y-4">
           {(cases ?? []).length === 0 && <p className="text-muted">No cases yet. Create your first one.</p>}
           {(cases ?? []).map((c) => (
-            <Link key={c.id} href={`/app/cases/${c.id}`} className="block rounded-3xl border border-line bg-raised p-6 transition hover:border-fg/30">
+            <Link key={c.id} href={`/app/cases/${c.id}`} className="block doc p-6 transition hover:border-fg/30">
               <p className="text-sm text-muted">{c.visa_type === "F1" ? "F-1 student" : "B1/B2 visitor"}</p>
               <p className="font-display mt-1 text-3xl">{c.applicant_name}</p>
               <p className="mt-2 text-sm text-muted">
@@ -30,7 +30,7 @@ export default async function Dashboard() {
           ))}
         </div>
         <Card>
-          <h2 className="font-display text-2xl">New case</h2>
+          <h2 className="font-display text-2xl uppercase">New case</h2>
           <form action={createCase} className="mt-5 grid gap-4">
             <Field label="Applicant's name" hint="As on the passport.">
               <input name="applicantName" required maxLength={80} className={inputCls} />

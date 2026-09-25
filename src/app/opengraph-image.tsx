@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "Okwan: rehearse your US visa interview until it's yours";
+export const alt = "Okwan: the officer has already read your file. US visa interview practice for Ghanaians.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -14,21 +14,24 @@ export default function OpengraphImage() {
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
-          padding: 72,
-          background: "radial-gradient(70% 70% at 80% 20%, rgba(224,165,38,0.35), transparent 60%), #0c1320",
-          color: "#f5efe3",
+          padding: 64,
+          background: "#f3f0e8",
+          color: "#14140f",
+          border: "10px solid #14140f",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: 36 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 12, border: "4px solid #f5efe3", display: "flex" }} />
-          Okwan
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 26, letterSpacing: 3 }}>
+          <span>OKWAN</span>
+          <span style={{ border: "3px solid #0b7447", color: "#0b7447", padding: "4px 14px", transform: "rotate(-4deg)" }}>
+            PRACTICE INTERVIEW
+          </span>
         </div>
-        <div style={{ display: "flex", flexDirection: "column", fontSize: 76, lineHeight: 1.02, letterSpacing: -2 }}>
-          <span>Two and a half minutes.</span>
-          <span style={{ color: "#e0a526" }}>Rehearse them until they&apos;re yours.</span>
+        <div style={{ display: "flex", flexDirection: "column", fontSize: 92, fontWeight: 800, lineHeight: 0.95, letterSpacing: -2 }}>
+          <span>THE OFFICER HAS</span>
+          <span>ALREADY READ YOUR FILE.</span>
         </div>
-        <div style={{ display: "flex", fontSize: 28, color: "rgba(245,239,227,0.65)" }}>
-          US visa interview practice for Ghanaians · F-1 and B1/B2 · Pay with MoMo
+        <div style={{ display: "flex", fontSize: 26, color: "#5b584f" }}>
+          US visa interview practice for Ghanaians · F-1 and B1/B2 · A different officer every time
         </div>
       </div>
     ),

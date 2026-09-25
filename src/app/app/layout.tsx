@@ -19,7 +19,7 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
           <div className="flex items-center gap-4 text-sm text-muted">
             <span className="hidden sm:inline">{user.phone ? `+${user.phone.replace(/^\+/, "")}` : user.email}</span>
             <form action="/auth/signout" method="post">
-              <button className="rounded-full border border-line px-3 py-1.5 hover:text-fg">Sign out</button>
+              <button className="rounded-[3px] border border-line px-3 py-1.5 hover:text-fg">Sign out</button>
             </form>
           </div>
         </div>

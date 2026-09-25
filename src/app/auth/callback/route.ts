@@ -5,7 +5,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const next = url.searchParams.get("next") ?? "/app";
-  const safeNext = /^\/(app|admin)(\/|$)/.test(next) ? next : "/app";
+  const safeNext = /^\/(app|admin|auth\/update-password)(\/|$)/.test(next) ? next : "/app";
   if (code) {
     const supabase = await createClient();
     await supabase.auth.exchangeCodeForSession(code);

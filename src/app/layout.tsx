@@ -1,20 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
+import { Archivo, IBM_Plex_Mono, Newsreader } from "next/font/google";
 import type { Organization, WebSite, WithContext } from "schema-dts";
 import { JsonLd } from "@/components/json-ld";
 import { site } from "@/lib/site";
 import "./globals.css";
 
-const geist = Geist({ variable: "--font-geist", subsets: ["latin"], display: "swap" });
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"], display: "swap" });
-const instrument = Instrument_Serif({
-  variable: "--font-instrument",
-  subsets: ["latin"],
-  weight: "400",
-  style: ["normal", "italic"],
-  // "optional" keeps LCP at first paint on slow networks instead of re-painting the headline on swap.
-  display: "optional",
-});
+const archivo = Archivo({ variable: "--font-archivo", subsets: ["latin"], axes: ["wdth"], display: "swap" });
+const plexMono = IBM_Plex_Mono({ variable: "--font-plex-mono", subsets: ["latin"], weight: ["400", "500", "600"], display: "swap" });
+const newsreader = Newsreader({ variable: "--font-newsreader", subsets: ["latin"], style: ["italic"], display: "swap" });
 
 export const metadata: Metadata = {
   metadataBase: new URL(site.url),
@@ -44,8 +37,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f5efe3" },
-    { media: "(prefers-color-scheme: dark)", color: "#0a0f19" },
+    { media: "(prefers-color-scheme: light)", color: "#f3f0e8" },
+    { media: "(prefers-color-scheme: dark)", color: "#12120e" },
   ],
   colorScheme: "light dark",
 };
@@ -76,12 +69,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang={site.lang}
-      className={`${geist.variable} ${geistMono.variable} ${instrument.variable} h-full antialiased`}
+      className={`${archivo.variable} ${plexMono.variable} ${newsreader.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <a
           href="#main"
-          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-gold focus:px-4 focus:py-2 focus:text-ink"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:bg-ink focus:px-4 focus:py-2 focus:text-on-ink"
         >
           Skip to content
         </a>

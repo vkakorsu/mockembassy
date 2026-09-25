@@ -27,7 +27,7 @@ export default async function PassPage(props: PageProps<"/app/cases/[id]/pass">)
         {typeof reason === "string" ? reason : "One payment per interview. MoMo or card. VAT included. Refunds within 7 days."}
       </PageTitle>
       {!features.paystack && (
-        <p className="mb-6 rounded-2xl border border-line p-4 text-sm text-muted">Payments aren&rsquo;t configured yet (PAYSTACK_SECRET_KEY).</p>
+        <p className="mb-6 rounded-[4px] border border-line p-4 text-sm text-muted">Payments aren&rsquo;t configured yet (PAYSTACK_SECRET_KEY).</p>
       )}
       <div className="grid gap-5 md:grid-cols-2">
         {purchasable.map((p, i) => (

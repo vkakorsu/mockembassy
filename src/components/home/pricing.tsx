@@ -1,66 +1,59 @@
+import Link from "next/link";
 import { formatGhs, LAUNCH_PRICE_GHS, LAUNCH_PRICE_LIMIT, plans, type Plan } from "@/lib/pricing";
 
-function PlanCard({ p }: { p: Plan }) {
-  const dark = p.featured;
+function Row({ p }: { p: Plan }) {
   return (
-    <li
-      className={`reveal flex flex-col rounded-3xl border p-7 ${
-        dark ? "border-ink bg-ink text-white shadow-2xl lg:-my-4 lg:py-11" : "border-line bg-raised"
-      }`}
-    >
-      <p className={`text-sm ${dark ? "text-gold" : "text-muted"}`}>{p.name}</p>
-      <p className="font-display mt-3 text-6xl tabular">{formatGhs(p.priceGhs)}</p>
-      <p className={`mt-1 text-xs ${dark ? "text-white/55" : "text-muted"}`}>{p.cadence}</p>
-      <p className={`mt-5 leading-relaxed ${dark ? "text-white/80" : "text-fg"}`}>{p.summary}</p>
-      <ul className={`mt-5 space-y-2 text-sm ${dark ? "text-white/75" : "text-muted"}`}>
-        {p.features.map((f) => (
-          <li key={f} className="flex gap-2">
-            <span aria-hidden className={dark ? "text-gold" : "text-accent"}>
-              ✓
-            </span>
-            {f}
-          </li>
-        ))}
-      </ul>
-      {dark && (
-        <p className="mt-auto pt-7 text-xs text-gold">
-          Launch price {formatGhs(LAUNCH_PRICE_GHS)} for the first {LAUNCH_PRICE_LIMIT.toLocaleString()} passes.
-        </p>
-      )}
+    <li className={`grid gap-4 border-t border-ink py-7 lg:grid-cols-12 lg:items-start ${p.featured ? "bg-card lg:-mx-6 lg:px-6" : ""}`}>
+      <div className="lg:col-span-3">
+        <p className="text-xl font-semibold">{p.name}</p>
+        <p className="label mt-1 text-muted">{p.cadence}</p>
+        {p.featured && <span className="stamp mt-3 text-stamp">Recommended</span>}
+      </div>
+      <p className="font-display text-5xl tabular lg:col-span-2">{formatGhs(p.priceGhs)}</p>
+      <div className="lg:col-span-7">
+        <p className="leading-relaxed">{p.summary}</p>
+        <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted">
+          {p.features.map((f) => (
+            <li key={f}>— {f}</li>
+          ))}
+        </ul>
+        {p.featured && (
+          <p className="label mt-4 text-stamp">
+            Launch price {formatGhs(LAUNCH_PRICE_GHS)} for the first {LAUNCH_PRICE_LIMIT.toLocaleString()} passes
+          </p>
+        )}
+      </div>
     </li>
   );
 }
 
 export function Pricing() {
-  const core = plans.filter((p) => ["free", "sprint", "pass"].includes(p.id));
-  const human = plans.filter((p) => ["coach", "senior"].includes(p.id));
   return (
-    <section id="pricing" aria-labelledby="pricing-title" className="scroll-mt-8 border-b border-line">
+    <section id="pricing" aria-labelledby="pricing-title" className="scroll-mt-4 border-b border-ink">
       <div className="mx-auto max-w-7xl px-4 py-20 sm:px-8 lg:py-28">
-        <p className="text-sm uppercase tracking-[0.2em] text-accent">Pricing</p>
-        <div className="mt-3 grid gap-6 lg:grid-cols-2 lg:items-end">
-          <h2 id="pricing-title" className="font-display text-[clamp(2.2rem,4.6vw,3.8rem)]">
-            Pay once per interview. <em className="text-muted">Never per minute.</em>
-          </h2>
-          <p className="text-lg leading-relaxed text-muted">
+        <div className="grid gap-6 lg:grid-cols-12 lg:items-end">
+          <div className="lg:col-span-7">
+            <p className="label text-muted">Part 05 / 05 · Schedule of fees</p>
+            <h2 id="pricing-title" className="font-display mt-3 text-[clamp(2.4rem,4.6vw,4rem)] uppercase">
+              Pay once per interview. Never per minute.
+            </h2>
+          </div>
+          <p className="leading-relaxed text-muted lg:col-span-4 lg:col-start-9">
             Prices include VAT. Pay with MTN MoMo, Telecel Cash, AirtelTigo Money or card. No subscriptions, no
-            auto-renewals. Refunds within 7 days.
+            auto-renewals, refunds within 7 days.
           </p>
         </div>
-        <ul className="mt-14 grid gap-5 md:grid-cols-3">
-          {core.map((p) => (
-            <PlanCard key={p.id} p={p} />
+        <ul className="mt-12 border-b border-ink">
+          {plans.map((p) => (
+            <Row key={p.id} p={p} />
           ))}
         </ul>
-        <h3 className="font-display mt-20 text-3xl">Add a human expert</h3>
-        <ul className="mt-6 grid gap-5 md:grid-cols-2">
-          {human.map((p) => (
-            <PlanCard key={p.id} p={p} />
-          ))}
-        </ul>
-        <p className="mt-10 text-sm text-muted">
-          Agencies, schools and churches: seat packs from GH₵199 per applicant, with a counsellor dashboard.
-        </p>
+        <div className="mt-8 flex flex-wrap items-center justify-between gap-4">
+          <p className="text-sm text-muted">Agencies, schools and churches: seat packs from GH₵199 per applicant, with a counsellor dashboard.</p>
+          <Link href="/signup" className="rounded-[3px] bg-ink px-5 py-3 text-sm font-semibold text-on-ink hover:bg-stamp">
+            Create a free account
+          </Link>
+        </div>
       </div>
     </section>
   );

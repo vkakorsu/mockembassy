@@ -1,6 +1,6 @@
 import type { FAQPage, SoftwareApplication, WithContext } from "schema-dts";
 import { Experts } from "@/components/home/experts";
-import { EarlyAccess } from "@/components/home/early-access";
+import { ClosingCta } from "@/components/home/closing-cta";
 import { Faq } from "@/components/home/faq";
 import { Footer } from "@/components/home/footer";
 import { Header } from "@/components/home/header";
@@ -60,7 +60,7 @@ export default function Home() {
         <Experts />
         <Pricing />
         <Faq />
-        <EarlyAccess />
+        <ClosingCta />
       </main>
       <Footer />
       <JsonLd data={[app, faqLd]} />

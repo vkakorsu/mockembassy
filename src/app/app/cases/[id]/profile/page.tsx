@@ -23,8 +23,8 @@ export default async function ProfilePage(props: PageProps<"/app/cases/[id]/prof
           : "We pre-filled what we could read from your documents. Correct anything that's wrong. The officer will only use what you confirm."}
       </PageTitle>
       {!!_conflicts?.length && (
-        <Card className="mb-6 border-gold/50">
-          <h2 className="font-display text-2xl">Your documents disagree</h2>
+        <Card className="mb-6 border-stamp">
+          <h2 className="font-display text-2xl uppercase">Your documents disagree</h2>
           <p className="mt-1 text-sm text-muted">Officers notice this. Make sure the true value matches your DS-160.</p>
           <ul className="mt-3 space-y-1 text-sm">
             {_conflicts.map((c, i) => (

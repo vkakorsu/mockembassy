@@ -11,12 +11,12 @@ import { caseEntitlement, getCase, latestProfile, pastSessions, readinessFrom } 
 const OUTCOME: Record<string, { label: string; cls: string }> = {
   approved: { label: "Approved", cls: "bg-approved/10 text-approved" },
   refused_214b: { label: "214(b) refusal", cls: "bg-refused/10 text-refused" },
-  administrative_221g: { label: "221(g)", cls: "bg-gold/15 text-accent" },
+  administrative_221g: { label: "221(g)", cls: "bg-stamp/10 text-accent" },
 };
 
 const SEVERITY: Record<string, string> = {
   high: "bg-refused/10 text-refused",
-  medium: "bg-gold/15 text-accent",
+  medium: "bg-stamp/10 text-accent",
   low: "bg-fg/5 text-muted",
 };
 
@@ -67,7 +67,7 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
           <Card>
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
-                <h2 className="font-display text-2xl">Practice</h2>
+                <h2 className="font-display text-2xl uppercase">Practice</h2>
                 <p className="mt-1 text-sm text-muted">{ent.reason}</p>
               </div>
               <div className="text-right">
@@ -75,8 +75,8 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
                 <p className="font-display text-4xl tabular">{Math.round(readiness * 100)}%</p>
               </div>
             </div>
-            <div className="mt-3 h-2 overflow-hidden rounded-full bg-fg/10">
-              <div className="h-full rounded-full bg-gold" style={{ width: `${Math.round(readiness * 100)}%` }} />
+            <div className="mt-3 h-2 overflow-hidden rounded-[3px] bg-fg/10">
+              <div className="h-full rounded-[3px] bg-stamp" style={{ width: `${Math.round(readiness * 100)}%` }} />
             </div>
             <p className="mt-2 text-xs text-muted">
               A topic only counts once two different officers have heard you answer it well.
@@ -86,7 +86,7 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
                 First, <Link className="underline" href={`/app/cases/${id}/profile`}>confirm your facts</Link>. The officer only uses what you confirm.
               </p>
             ) : ent.kind === "none" ? (
-              <Link href={`/app/cases/${id}/pass`} className="mt-6 inline-block rounded-full bg-gold px-5 py-2.5 text-sm font-medium text-ink">
+              <Link href={`/app/cases/${id}/pass`} className="mt-6 inline-block rounded-[3px] bg-ink px-5 py-2.5 text-sm font-semibold text-on-ink hover:bg-stamp">
                 See passes
               </Link>
             ) : (
@@ -110,12 +110,12 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
 
           {flags.length > 0 && (
             <Card>
-              <h2 className="font-display text-2xl">Case Scan</h2>
+              <h2 className="font-display text-2xl uppercase">Case Scan</h2>
               <p className="mt-1 text-sm text-muted">Where the officer is likely to press. No approval odds, ever.</p>
               <ul className="mt-4 space-y-3">
                 {flags.map((f) => (
-                  <li key={f.id} className="flex items-start gap-3 rounded-2xl border border-line p-4">
-                    <span className={`mt-0.5 rounded-full px-2 py-0.5 text-[11px] font-medium uppercase tracking-wider ${SEVERITY[f.severity]}`}>{f.severity}</span>
+                  <li key={f.id} className="flex items-start gap-3 rounded-[4px] border border-line p-4">
+                    <span className={`mt-0.5 rounded-[3px] px-2 py-0.5 text-[11px] font-medium uppercase tracking-wider ${SEVERITY[f.severity]}`}>{f.severity}</span>
                     <span>
                       <span className="block font-medium">{f.title}</span>
                       <span className="mt-1 block text-sm text-muted">{f.detail}</span>
@@ -127,7 +127,7 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
           )}
 
           <Card>
-            <h2 className="font-display text-2xl">Sessions</h2>
+            <h2 className="font-display text-2xl uppercase">Sessions</h2>
             {(sessions ?? []).length === 0 ? (
               <p className="mt-2 text-sm text-muted">No sessions yet.</p>
             ) : (
@@ -145,7 +145,7 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
                         </span>
                       </span>
                       <span className="flex items-center gap-3">
-                        {o && <span className={`rounded-full px-2 py-0.5 text-xs ${o.cls}`}>{o.label}</span>}
+                        {o && <span className={`rounded-[3px] px-2 py-0.5 text-xs ${o.cls}`}>{o.label}</span>}
                         <Link className="underline-offset-4 hover:underline" href={s.ended_at ? `/app/sessions/${s.id}/debrief` : `/app/sessions/${s.id}`}>
                           {s.ended_at ? "Debrief" : "Resume"}
                         </Link>
@@ -160,22 +160,22 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
 
         <div className="space-y-6">
           <Card>
-            <h2 className="font-display text-2xl">Your facts</h2>
+            <h2 className="font-display text-2xl uppercase">Your facts</h2>
             <p className="mt-1 text-sm text-muted">
               {current ? `Confirmed, version ${current.version}.` : "Not confirmed yet."} {docCount ?? 0} document(s) uploaded.
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
-              <Link href={`/app/cases/${id}/documents`} className="rounded-full border border-line px-4 py-2 text-sm hover:border-fg/40">
+              <Link href={`/app/cases/${id}/documents`} className="rounded-[3px] border border-line px-4 py-2 text-sm hover:border-fg/40">
                 Documents
               </Link>
-              <Link href={`/app/cases/${id}/profile`} className="rounded-full border border-line px-4 py-2 text-sm hover:border-fg/40">
+              <Link href={`/app/cases/${id}/profile`} className="rounded-[3px] border border-line px-4 py-2 text-sm hover:border-fg/40">
                 {current ? "Review facts" : "Confirm facts"}
               </Link>
             </div>
           </Card>
 
           <Card>
-            <h2 className="font-display text-2xl">Interview date</h2>
+            <h2 className="font-display text-2xl uppercase">Interview date</h2>
             <form action={setInterviewDate.bind(null, id)} className="mt-4 flex gap-2">
               <input name="interviewDate" type="date" required defaultValue={interview ? interview.toISOString().slice(0, 10) : ""} className={inputCls} />
               <Button variant="ghost">Save</Button>
@@ -184,7 +184,7 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
           </Card>
 
           <Card>
-            <h2 className="font-display text-2xl">Pass</h2>
+            <h2 className="font-display text-2xl uppercase">Pass</h2>
             {pass ? (
               <div className="mt-2 text-sm">
                 <p className="capitalize">{pass.plan === "pass" ? "Interview Pass" : `Pass + ${pass.plan}`}</p>
@@ -210,7 +210,7 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
 
           {interviewPassed && (
             <Card>
-              <h2 className="font-display text-2xl">How did it go?</h2>
+              <h2 className="font-display text-2xl uppercase">How did it go?</h2>
               <form action={reportOutcome.bind(null, id)} className="mt-4 grid gap-3">
                 <Field label="Result">
                   <select name="result" className={inputCls}>

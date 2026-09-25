@@ -11,7 +11,7 @@ export default async function AdminAudit() {
     <>
       <PageHead title="Audit log">Every sensitive admin action, with the reason given. Entries can&rsquo;t be edited from the app.</PageHead>
       {error && (
-        <p className="mt-6 rounded-2xl border border-refused/40 p-4 text-sm">
+        <p className="mt-6 rounded-[4px] border border-refused/40 p-4 text-sm">
           The audit log table is missing. Apply <code className="font-mono">supabase/migrations/20260926000005_admin.sql</code>. Sensitive
           actions are blocked until then.
         </p>

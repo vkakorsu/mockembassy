@@ -12,7 +12,7 @@ export default async function AdminWaitlist() {
     <>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <PageHead title="Waitlist">Latest 1,000 sign-ups. The export includes only people who agreed to WhatsApp messages.</PageHead>
-        <a href="/admin/waitlist/export" className="rounded-full bg-ink px-5 py-2.5 text-sm text-paper dark:bg-gold dark:text-ink">
+        <a href="/admin/waitlist/export" className="rounded-[3px] bg-ink px-5 py-2.5 text-sm font-semibold text-on-ink hover:bg-stamp">
           Export CSV
         </a>
       </div>

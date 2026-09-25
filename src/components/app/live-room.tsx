@@ -3,6 +3,7 @@
 import { FunctionResponseScheduling, GoogleGenAI, type LiveServerMessage, type Session } from "@google/genai";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { Guilloche } from "@/components/guilloche";
 import { createClient } from "@/lib/supabase/browser";
 
 /**
@@ -310,63 +311,62 @@ export function LiveRoom(props: Props) {
 
   useEffect(() => () => cleanupRef.current(), []);
 
-  const bars = 32;
+  const bars = 40;
   return (
-    <div className="grain relative flex min-h-[100dvh] flex-col bg-ink text-white">
+    <div className="flex min-h-[100dvh] flex-col bg-paper">
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 py-6 sm:py-10">
-        <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.18em] text-white/60">
-          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">{props.officerName}</span>
-          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 font-mono tabular">
-            {phase === "live" ? fmt(elapsed) : props.isFree ? "Free · 01:30" : "Window 7"}
-          </span>
-        </div>
+        <div className="doc relative flex flex-1 flex-col overflow-hidden">
+          <Guilloche className="guilloche pointer-events-none absolute -right-52 -top-52 w-[560px]" />
+          <div className="relative flex items-center justify-between border-b border-ink px-5 py-3">
+            <span className="label">Window 07 · {props.isFree ? "Free mock" : "Practice interview"}</span>
+            <span className="label tabular" aria-label="Time at the window">
+              {phase === "live" || phase === "ending" ? fmt(elapsed) : "00:00"}
+            </span>
+          </div>
 
-        <div className="window-frame mt-8 flex-1">
-          <div className="relative flex h-full min-h-[340px] flex-col items-center justify-center overflow-hidden rounded-[18px]">
-            <div className="window-room" aria-hidden />
-            <div aria-hidden className="absolute bottom-0 left-1/2 h-[60%] w-[46%] -translate-x-1/2">
-              <div className="mx-auto h-[34%] w-[42%] rounded-full bg-[#0a0f18]/85" />
-              <div className="mx-auto -mt-[4%] h-[70%] w-full rounded-t-[45%] bg-[#0a0f18]/90" />
-            </div>
-            <div className="window-glass" aria-hidden style={{ ["--frost" as string]: "10px" }} />
-            <div className="relative flex h-16 items-center gap-[3px]" aria-hidden>
+          <div className="relative flex flex-1 flex-col justify-center px-6 py-10 sm:px-10">
+            <span className="stamp w-fit text-stamp">{props.officerName}</span>
+            <div className="mt-10 flex h-24 items-center gap-[3px]" aria-hidden>
               {Array.from({ length: bars }, (_, i) => {
-                const h = Math.max(0.08, Math.min(1, officerLevel * 3.2 * (0.6 + 0.4 * Math.sin(i * 1.7 + elapsed))));
-                return <span key={i} className="w-[3px] rounded-full bg-gold transition-[height] duration-100" style={{ height: `${h * 100}%` }} />;
+                const h = Math.max(0.06, Math.min(1, officerLevel * 3.2 * (0.55 + 0.45 * Math.abs(Math.sin(i * 1.3 + elapsed)))));
+                return <span key={i} className="w-[4px] bg-ink transition-[height] duration-100" style={{ height: `${h * 100}%` }} />;
               })}
             </div>
-            <p aria-live="polite" className="relative mt-6 px-6 text-center text-sm text-white/70">
-              {phase === "ready" && "Stand up, take a breath. When you're ready, step up to the window."}
-              {phase === "connecting" && "Opening the window…"}
-              {phase === "live" && (status || "Speak naturally. The officer can interrupt you.")}
+            <p aria-live="polite" className="font-voice mt-8 text-[clamp(1.6rem,3.2vw,2.3rem)] leading-tight">
+              {phase === "ready" && "Stand up. Take a breath. When you're ready, step up to the window."}
+              {phase === "connecting" && "The officer is looking at your file…"}
+              {phase === "live" && (status || "Speak naturally. The officer may interrupt you, and decides when they've heard enough.")}
               {phase === "ending" && status}
               {phase === "error" && error}
             </p>
           </div>
-        </div>
 
-        <div className="mt-8 flex flex-col items-center gap-4">
-          {phase === "ready" || phase === "error" ? (
-            <button onClick={start} className="rounded-full bg-gold px-8 py-4 font-medium text-ink transition hover:brightness-110">
-              Step up to the window
-            </button>
-          ) : phase === "live" ? (
-            <>
-              <div className="flex items-center gap-3 text-xs text-white/50">
-                <span>Your mic</span>
-                <span className="h-1.5 w-32 overflow-hidden rounded-full bg-white/10">
-                  <span className="block h-full rounded-full bg-white/70" style={{ width: `${Math.min(100, micLevel * 400)}%` }} />
-                </span>
-              </div>
-              <button onClick={() => void finish()} className="text-sm text-white/50 underline-offset-4 hover:text-white hover:underline">
-                Leave the window
+          <div className="perforated" />
+          <div className="relative flex flex-wrap items-center justify-between gap-4 px-5 py-4 sm:px-8">
+            {phase === "ready" || phase === "error" ? (
+              <button onClick={start} className="rounded-[3px] bg-ink px-6 py-3.5 font-semibold text-on-ink hover:bg-stamp">
+                Step up to the window
               </button>
-            </>
-          ) : null}
-          <p className="max-w-md text-center text-xs text-white/40">
-            Practice simulation. The outcome is a training signal, not a prediction. Uses about 3–5 MB of data per minute.
-          </p>
+            ) : phase === "live" ? (
+              <>
+                <div className="flex items-center gap-3">
+                  <span className="label text-muted">Your mic</span>
+                  <span className="h-2 w-32 border border-ink">
+                    <span className="block h-full bg-stamp" style={{ width: `${Math.min(100, micLevel * 400)}%` }} />
+                  </span>
+                </div>
+                <button onClick={() => void finish()} className="text-sm underline underline-offset-4">
+                  Leave the window
+                </button>
+              </>
+            ) : (
+              <span className="label text-muted">Saving…</span>
+            )}
+          </div>
         </div>
+        <p className="mx-auto mt-4 max-w-md text-center text-xs text-muted">
+          Practice simulation. The outcome is a training signal, not a prediction. Uses about 3–5 MB of data per minute.
+        </p>
       </div>
     </div>
   );

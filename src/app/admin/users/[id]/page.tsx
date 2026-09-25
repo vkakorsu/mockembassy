@@ -22,7 +22,7 @@ function ReasonForm({ action, label, children }: { action: (f: FormData) => Prom
     <form action={action} className="flex flex-wrap items-center gap-2">
       {children}
       <input name="reason" required minLength={5} maxLength={500} placeholder="Reason (logged)" className={`${inputCls} max-w-xs py-1.5 text-sm`} />
-      <button className="rounded-full border border-line px-3 py-1.5 text-sm hover:border-fg/40">{label}</button>
+      <button className="rounded-[3px] border border-line px-3 py-1.5 text-sm hover:border-fg/40">{label}</button>
     </form>
   );
 }
@@ -65,9 +65,9 @@ export default async function AdminUser(props: PageProps<"/admin/users/[id]">) {
   return (
     <>
       {typeof notice === "string" && NOTICES[notice] && (
-        <p role="status" className="mb-6 rounded-2xl border border-gold/40 bg-gold/10 px-4 py-3 text-sm">{NOTICES[notice]}</p>
+        <p role="status" className="mb-6 rounded-[4px] border border-stamp bg-stamp/10 px-4 py-3 text-sm">{NOTICES[notice]}</p>
       )}
-      <PageHead title={phone ?? authUser.user?.email ?? "User"}>
+      <PageHead title={profile.email ?? authUser.user?.email ?? phone ?? "User"}>
         Joined {new Date(profile.created_at).toLocaleDateString()} · role <strong>{profile.role}</strong> · last sign-in{" "}
         {authUser.user?.last_sign_in_at ? new Date(authUser.user.last_sign_in_at).toLocaleString() : "never"}
       </PageHead>
@@ -110,7 +110,7 @@ export default async function AdminUser(props: PageProps<"/admin/users/[id]">) {
               />
             </div>
 
-            <div className="mt-4 space-y-3 rounded-2xl border border-line p-4">
+            <div className="mt-4 space-y-3 rounded-[4px] border border-line p-4">
               <p className="text-sm font-medium">Grant a comped pass</p>
               <ReasonForm action={grantPass.bind(null, id, c.id)} label="Grant">
                 <select name="plan" className={`${inputCls} w-auto py-1.5 text-sm`}>
@@ -122,11 +122,11 @@ export default async function AdminUser(props: PageProps<"/admin/users/[id]">) {
               </ReasonForm>
             </div>
 
-            <div className="mt-4 rounded-2xl border border-line p-4">
+            <div className="mt-4 rounded-[4px] border border-line p-4">
               {factsCase?.id === c.id ? (
                 <>
                   <p className="text-sm font-medium">Confirmed case facts (access logged)</p>
-                  <pre className="mt-3 max-h-96 overflow-auto rounded-xl bg-fg/[0.04] p-4 text-xs">{JSON.stringify(factsCase?.profile, null, 2) ?? "No confirmed facts."}</pre>
+                  <pre className="mt-3 max-h-96 overflow-auto rounded-[3px] bg-fg/[0.04] p-4 text-xs">{JSON.stringify(factsCase?.profile, null, 2) ?? "No confirmed facts."}</pre>
                 </>
               ) : (
                 <>
