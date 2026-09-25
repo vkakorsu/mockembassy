@@ -135,7 +135,7 @@ export function planSession(input: DirectorInput): SessionPlan {
   const core = candidates.filter((p) => p.category !== "wildcard");
   const wildcards = candidates.filter((p) => p.category === "wildcard");
 
-  const scored = core.map((p) => {
+  const scored = core.map((p): { probe: Probe; score: number; reason: PlannedProbe["reason"] } => {
     const status = probeStatus(p.id, pastSessions);
     let score = p.relevance(profile) + (p.critical ? 0.3 : 0) + rng() * 0.6;
     let reason: PlannedProbe["reason"] = "coverage";
