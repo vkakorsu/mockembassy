@@ -8,12 +8,15 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "audio:hero": "tsx --tsconfig tsconfig.json scripts/render-officer-audio.mts",
+    "test:db": "bash supabase/tests/run.sh"
   },
   "dependencies": {
     "next": "16.3.6",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "server-only": "^0.0.1",
     "zod": "^4.6.5"
   },
   "devDependencies": {
@@ -25,6 +28,7 @@
     "eslint-config-next": "16.3.6",
     "schema-dts": "^2.0.0",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^5.0.2"
   },

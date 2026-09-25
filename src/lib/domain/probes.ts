@@ -104,6 +104,8 @@ export const PROBES: readonly Probe[] = [
     entry: [
       "Your I-20 says about ${i20} for the first year. Where is that money coming from?",
       "How will you cover the full first-year cost?",
+      "Your bank statement doesn't reach the first-year cost. How do you close that?",
+      "Where does the rest of the tuition money come from?",
     ],
     followUpVague: ["And the second year?"],
     followUpContradiction: ["Those numbers don't add up. Explain it to me."],
