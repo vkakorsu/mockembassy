@@ -4,6 +4,15 @@
 
 **Status:** research and decision document, written 25 Sep 2026. Every figure below has its source linked in the [Sources](#sources) section. Where a source is a weak blog rather than a primary source, this document says so.
 
+**Revision 2 (25 Sep 2026):**
+- **§2.2 is a new design for the interview engine.** Each session is generated per user and per session: a Director (with memory) plans it, an Officer (without memory) runs it, and a Referee decides the outcome. There's a probe taxonomy, rules for novelty and weak-area retests, and a way to measure realism.
+- **§4 security:** added prompt-injection hardening for uploaded documents.
+- **§4.3:** added a warning about the LiveKit + Gemini 3.8 Live plugin.
+- **§4.4:** added data tables for session plans and question memory.
+- **§2.3:** added feedback on the first 60 seconds and on volunteered information.
+- **Phase 0 (§10):** now collects real transcripts to calibrate realism.
+- **§11:** new risks added.
+
 ---
 
 ## 0. TL;DR (the decisions)
@@ -11,7 +20,7 @@
 | Area | Decision |
 |---|---|
 | **Name** | **Okwan** (Twi for *the way / the road*). `okwan.ai` is the primary domain. `okwan.app` and `getokwan.com` redirect to it. All three were available on 25 Sep 2026. See §9. |
-| **Core bet** | Don't build a question-bank chatbot. Build the **2.5-minute interview itself**: an officer who has read your case, interrupts you, and ends the interview the way real officers do. Then give a debrief grounded in your own documents. |
+| **Core bet** | Don't build a question-bank chatbot. Build the **2.5-minute interview itself**, and **never the same one twice**. A Director with memory of every earlier session plans each interview around *your* case and *your* weak spots. Then a fresh Officer, who knows only what a real officer would see, runs it, improvises follow-ups from your answers, and is decided by a rules-based Referee (§2.2). The debrief is grounded in your own documents. |
 | **Wedge** | Start with F-1 (81% refusal rate for Ghana in 2025) and B1/B2 (64.3% refusal rate, plus a $10k–$20k visa bond). Add J-1, then others. |
 | **Live officer voice** | **Gemini 3.8 Live**, a native speech-to-speech model: about 1.2 s to first audio, built-in barge-in, about $0.02–0.03 of audio per minute. |
 | **Gemini 3.8 Flash TTS** | **Relevant, but not for the live conversation.** It takes about 13 s to first token. Use it for pre-rendered officer audio: the drill library, offline practice, "hear a strong answer", and marketing demos. See §3. |
@@ -84,28 +93,94 @@ The product has four parts: **Case, Window, Debrief and Readiness.** Each one ex
   - **Social-media vetting:** a reminder to set accounts to public (F/M/J).
   - **Prior refusal with nothing changed:** a 214(b) refusal and no new evidence since.
 
-### 2.2 The Window (the simulation) — this is the product
-- **It feels like the real thing:**
+### 2.2 The Window: no two interviews alike (this is the product)
+
+Real interviews are never scripted. Two applicants with the same visa type get different questions, because the officer reacts to *their* DS-160 and to *their* last sentence. The same applicant would get a different interview on a different day, with a different officer. Most competitors' products don't work like this: they draw from a fixed question list and apply the same rubric to everyone. **Okwan's officer is generated fresh for every user and every session, and it is constrained by reality.**
+
+#### 2.2.1 How the real interview behaves (what we must reproduce)
+- **The officer's first read of you comes from the DS-160 and from SEVIS (for F/J).** They can also see prior real refusals and travel history in the consular database. Nothing else.
+- **Most officers form a view in the first minute or so.** Some interviews end after 2 questions; some go 6–8 questions deep ([VisaMet](https://visamet.com/guides/us-visa-interview-questions-2026-guide), [EduConnect USA](https://educonnectusa.com/2026/05/f1-visa-interview-questions-2026/)).
+- **Volunteering information opens new lines of questioning.** If you mention "my sister in Houston", the next question is about your sister ([NNU Immigration](https://www.nnuimmigration.com/us-visa-interview-questions/)).
+- **Inconsistency between the DS-160 and what you say** is one of the most common refusal triggers ([Botelho Law](https://botelholawgroup.com/consular-processing-interview-questions-2026-guide/)).
+- **Officers are individuals.** They vary in pace, warmth, scepticism and patience. Sometimes there is silence while they type. Sometimes they ask you to repeat yourself, or ask for one document.
+- **Scale in Accra:** 61,000 applications in 2024, of which about 25,000 were approved ([AllAfrica / US Embassy](https://allafrica.com/stories/202505140274.html)).
+
+#### 2.2.2 Two brains: a Director plans, an Officer performs
+Each session is produced by two models with **deliberately different knowledge**:
+
+| | **Director** (plans the session, text model) | **Officer** (runs the session, Gemini 3.8 Live) |
+|---|---|---|
+| Knows | The confirmed Case Profile, the Case Scan, **every earlier session** (answers, weak spots, contradictions, questions already asked), days until the interview, and aggregated Reported Questions for similar profiles | **Only what a real officer would see:** DS-160 facts, I-20/DS-2019 (SEVIS), declared *real* prior refusals, travel history. **Nothing from earlier mocks.** |
+| Produces | A **Session Plan** (below), generated while the user sits in a short "waiting room" (queue number, ambience). That wait also hides the 2–4 s it takes to generate the plan. | The live interview: it improvises follow-ups from what the user actually says, within the plan's guardrails |
+| Why | Coaching needs memory, so the Director targets what you're weak at | Realism needs amnesia: every mock is a *new officer*, as it would be on the day |
+
+#### 2.2.3 The Session Plan (generated per user, per session)
+A JSON object validated with a Zod schema. It contains:
+- **The officer.** Sampled from *continuous* traits rather than 4 fixed personas: pace, warmth, scepticism, patience, verbosity, how much they interrupt, and how long they stay silent. Also a name plate, and a US voice or regional accent chosen from the Live voices. Across a user's sessions, officers are drawn to be *different from the recent ones*.
+- **Probes (2–4).** A probe is a hypothesis the officer tests, e.g. "funding covers year 1?", "reason to return?", "program fits career?", "who is the sponsor, really?". Each probe carries:
+  - **The facts it's grounded in:** exact profile fields.
+  - **Several entry phrasings.** The officer picks one or improvises.
+  - **An escalation ladder:** follow-ups if the answer is vague, and different ones if it's contradictory.
+  - **What a satisfying answer must contain**, in facts rather than wording.
+  - **An exit condition:** when the officer moves on.
+- **The opening move.** Examples: "Why this school?", "Who's paying?", "What do you do?", or a document request.
+- **Tempo and length.** A target duration sampled from **60 s to 4 min**, and an early-decision threshold. Strong answers can end the interview after 2 questions, just as in real life.
+- **Realism events, 0–2 per session, drawn from a curated list:**
+  - the officer asks you to repeat
+  - a long typing silence
+  - "Do you have your I-20 / bank statement?"
+  - an interruption mid-answer
+  - a follow-up on something you volunteered
+  - a DS-160 cross-check ("You didn't list relatives in the US...")
+- **A "wildcard" probe (at most one), drawn only from the taxonomy.** Example: "Why not study in Ghana?", or a question about a detail in your case you haven't practised.
+- **A decision policy:** the rules for approved, 221(g) and 214(b) in terms of probe results (see 2.2.5).
+
+#### 2.2.4 How the Director picks what to test (the tailoring rules)
+1. **Taxonomy-bounded.** The Director chooses probes only from a curated **probe taxonomy**: intent, ties, funding, sponsor, academic fit, career logic, travel history, US contacts, prior refusal, and so on. The taxonomy is built with former-officer advisors and fed by Reported Questions. Phrasing is generated; *what is tested* is not invented. This is what separates real variety from strange LLM questions.
+2. **Weakness-weighted.** A probe the user struggled with comes back in a later session, **with a different officer and different phrasing** (spaced repetition). A weakness is fixed only once it has been handled well by ≥2 distinct officers.
+3. **Novelty-constrained.** Questions are embedded and stored. A plan is rejected and regenerated if too many of its questions are near-duplicates of the last 3 sessions. The exception is deliberate weak-area retests.
+4. **Coverage.** Before the Readiness score can go green, every probe that is relevant to *this* case must have been tested at least once.
+5. **Difficulty rises with readiness.** Officers get terser and more sceptical as the user improves. The last session before the interview date is a **dress rehearsal**: realistic tempo, no hints, a length drawn from the real distribution.
+6. **The case changes, and the officer follows.** If the user uploads a new bank statement or changes a DS-160 answer, the profile is re-versioned, the Case Scan re-runs, and the next officer sees the new facts.
+7. **Not every session is hard.** Some officers approve quickly when answers are strong. Users must learn that short and confident is enough, and that they shouldn't keep talking after "approved".
+
+#### 2.2.5 In-session state: the Referee
+- The Officer calls **non-blocking tools** as it goes. Non-blocking is the default in 3.8 Live, so the conversation doesn't pause ([Google Cloud: async function calling](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/live-api/asynchronous-function-calling)). The tools are:
+  - `log_probe(probe_id, answer_quality, facts_mentioned)`
+  - `log_volunteered(fact)`
+  - `log_inconsistency(field, said, on_file)`
+  - `propose_decision(outcome, reasons)`
+- **The Referee** is server-side code in the agent worker. It keeps the probe state and the time budget. It checks what the user says against the profile to catch contradictions deterministically. **It decides the outcome from the decision policy.** The Officer's `propose_decision` is one input to that decision, not the verdict. This keeps outcomes consistent and explainable, instead of depending on the model's mood.
+- The Referee can nudge the Officer mid-session through context injection, for example: "time's up, decide", or "they just contradicted the DS-160 sponsor field, ask about it".
+- **Grounding guard:** the Officer may only state facts from its officer file. If it asserts something that isn't on file (e.g. "you said you're going to Texas" when it's Ohio), the Referee flags it, and it counts against our model quality metrics (target: 0).
+
+#### 2.2.6 The room
+- **Presentation:**
   - The interview is full-screen and minimal.
-  - The officer's voice comes "through the glass", with a light room-tone and queue ambience you can switch off.
+  - The officer's voice comes "through the glass", with a light room tone and queue ambience you can switch off.
   - The applicant stands. We prompt this, because posture changes how people speak.
-  - There is **no pause button** in "Real mode". A practice mode with hints exists separately.
-- **The officer knows your case.** The system prompt holds the Case Profile. The officer opens with what they're really asking about ("Why this university?", "Who is paying?", "What does your father do?") and follows up on weak points found by the Case Scan.
-- **The officer interrupts (barge-in) and ends the interview abruptly.** A session lasts 90 s to 4 min, then ends with one of three outcomes:
+- **Modes:**
+  - **Real mode** has no pause button and no hints.
+  - **Practice mode** lets you pause, get a hint and retry a single question.
+- **Endings:**
   - "Your visa is approved" (the officer keeps the passport)
   - a 221(g) slip
   - a 214(b) refusal sheet
 
-  The debrief explains why. This outcome is a **training signal, not a prediction**, and the UI says so.
-- **Officer personas** are calibrated from documented interviewing styles, not caricatures:
-  - *Brisk* (question after question)
-  - *Sceptical* (probes the numbers)
-  - *Friendly-but-thorough*
-  - *Silent* (long pauses to test composure)
-
-  The **2–4 personas** are reviewed by former consular officers acting as paid advisors (§7).
+  The debrief explains why, using the Referee's probe log. Every outcome is labelled **a training signal, not a prediction**.
+- **Full-visit mode (optional):** the arrival and wait sequence before the window. Build it only after Phase 0 interviews with recent Accra applicants confirm the actual sequence. Don't guess.
 - **Visa types at launch:** F-1 and B1/B2. Later: J-1, then H-1B/L-1 and K-1, and DV immigrant-visa interviews (DV interviews are a different format, so they're a separate module).
 - **Camera is optional.** With consent, 1 fps frames give feedback on eye contact and composure. Audio plus video Live sessions are capped at 2 min unless context compression is on. We turn compression on, but audio-only is the default so the experience is lighter on data.
+
+#### 2.2.7 How we prove sessions aren't cookie-cutter
+- **Blind realism test.** Every quarter, advisors get a mix of real interview transcripts (collected with consent in Phase 0) and simulated ones, and try to tell them apart. The target is performance close to chance.
+- **Per-session metrics:**
+  - the novelty rate (share of questions not asked in the user's last 3 sessions)
+  - probe coverage
+  - how often weak areas are retested
+  - grounding errors
+  - the user's own rating: "Did this feel like the real thing?" (1–5)
+- **Minimum bar:** two users with the same visa type and different cases should share fewer than about 30% of their opening probes. The same user should never get the same session twice.
 
 ### 2.3 Debrief (feedback you can act on)
 Each answer gets:
@@ -116,12 +191,14 @@ Each answer gets:
   - consistency with your Case Profile and earlier answers
   - length (seconds and words; aim for under about 20 s)
   - delivery: fillers, long pauses and pace, taken from word timestamps
+- **Your first 60 seconds.** A separate grade for the opening exchange, because officers often decide early.
+- **Volunteered information.** The debrief shows where you offered extra facts that opened a new line of questioning, and whether that helped or hurt.
 - **Red-flag detection.** Examples: "I'll look for a job there", "My uncle will pay" (with no documented uncle), "I'm not sure yet".
 - **"Your answer, stronger":** a rewrite that may use **only facts from your confirmed profile**. If the true case is weak, the rewrite says what evidence is missing and doesn't invent it. A validator enforces this. It blocks any rewrite that adds entities, numbers or relationships that aren't in the profile.
 - **Replay:** your recording plays alongside the transcript. You can re-record just that answer (a spaced-repetition drill).
 
 ### 2.4 Readiness (progress that is honest)
-- **The Readiness score** covers the last N Real-mode sessions, across **at least two personas**, and weights consistency over time. It is designed to be hard to game, because repeating the same persona doesn't raise it.
+- **The Readiness score** covers the last N Real-mode sessions, with **at least 3 distinct officers, one of them in the upper third for scepticism**. Every relevant probe must be covered (§2.2.4), and consistency counts over time. It is designed to be hard to game: repeating easy sessions doesn't raise it.
 - **The Consistency tracker** flags contradictions across sessions. Example: the sponsor was "father" on Tuesday and "uncle" on Thursday. In the real interview, this kind of contradiction is fatal.
 - **Countdown plan:** the user enters an interview date and gets a short daily plan, e.g. "3 min a day, 1 full mock every 2 days, a dress rehearsal 48 h before".
 - **Day-of guide for the Accra embassy:** logistics, what to bring, timing and composure. It links to the official pages and doesn't replace them.
@@ -184,7 +261,8 @@ A 4-minute mock costs **well under $0.15** in model audio. Sources: [SiliconANGL
 | Live officer | Gemini 3.8 Live. Use 3.8 Live Extended Thinking only for a "hard mode" persona, if its latency holds up. |
 | Pre-rendered speech | 3.8 Flash TTS and Flash-Lite TTS |
 | Post-session transcript, word timestamps, diarisation | Gemini 3.5 Transcribe: about $0.005/audio-min, 2.6% WER non-streaming on AA English ([eesel](https://www.eesel.ai/blog/gemini-3-5-transcribe), [OpenRouter](https://openrouter.ai/google/gemini-3.5-transcribe)) |
-| Document extraction, debrief grading, rewrites | Gemini 3.8 Flash with structured output |
+| **Director** (session plans), document extraction, debrief grading, rewrites | Gemini 3.8 Flash with structured output |
+| Referee (outcome and consistency checks) | Mostly deterministic code in the agent worker. A small Flash call is used only to judge fuzzy fact matching. |
 
 Keeping one vendor keeps it to one DPA and one bill, with low latency between the models. Optional: run a second model family as an offline judge to calibrate grading drift.
 
@@ -212,7 +290,7 @@ flowchart LR
     RSC[Next.js RSC / Route Handlers]
   end
   subgraph Agents["LiveKit Cloud + Agent worker (EU region)"]
-    Agent[Officer agent<br/>Gemini 3.8 Live plugin]
+    Agent[Officer agent + Referee<br/>Gemini 3.8 Live plugin]
   end
   subgraph Google["Gemini API / Vertex AI"]
     Live[Gemini 3.8 Live]
@@ -233,6 +311,8 @@ flowchart LR
   Agent --> S3
   RSC --> Jobs
   Jobs --> Flash & STT & TTS
+  RSC -- Director: session plan --> Flash
+  RSC -- plan --> Agent
   Jobs --> PG
   RSC --> Pay
 ```
@@ -257,6 +337,7 @@ flowchart LR
 - Gemini Live expects **16-bit PCM at 16 kHz in and 24 kHz out**. That's roughly **2 MB/min up and 3 MB/min down**, or about 20 MB for a 4-minute mock, and it runs over TCP, which stalls on lossy mobile links.
 - **WebRTC with Opus** uses roughly 24–32 kbps each way (about 0.2–0.25 MB/min). It handles jitter and packet loss, and it has echo cancellation and noise suppression built in. For users on MTN or Telecel 4G, that difference *is* the product.
 - The agent worker runs next to Google. It converts Opus to PCM, keeps the system prompt and the Case Profile **server-side** (they are never exposed to the browser), records both tracks for the debrief, and enforces session limits.
+- **Plugin warning (as of Sep 2026):** Gemini 3.8 Live makes tool calls asynchronous by default. There is an open LiveKit Agents issue saying the plugin ends up in a hybrid blocking/non-blocking state, that scheduling can't be set per tool, and that tool results wait until audio playback finishes ([livekit/agents#7302](https://github.com/livekit/agents/issues/7302)). The Referee depends on those tools, so **spike this in Phase 0**. If it's still broken, use our own thin LiveKit agent that talks to the Live API directly, or the fallback below.
 - **Fallback:** the Gemini Live WebSocket connected directly from the browser, using **ephemeral tokens locked to the config**. This is useful for a prototype in week 1. ([Ephemeral tokens](https://ai.google.dev/gemini-api/docs/live-api/ephemeral-tokens), [session management](https://ai.google.dev/gemini-api/docs/live-session))
 - Turn on **session resumption**, so a dropped connection resumes within 24 h, and **context-window compression**, so sessions aren't capped at 15 min.
 - **Measure from Accra** before choosing regions. Candidates are europe-west for Gemini and Vertex, and the EU for LiveKit and Supabase. Budget: under 1.5 s from the end of the user's speech to the officer's first audio, at the 75th percentile, on 4G.
@@ -265,7 +346,11 @@ flowchart LR
 - `profiles`: user, phone, locale
 - `cases`: visa type, interview date, confirmed profile JSON, version
 - `documents`: storage path, type, extraction JSON, `delete_after`
-- `sessions`: case, persona, mode, outcome, duration, recording paths
+- `sessions`: case, profile version, mode, outcome, duration, recording paths
+- `session_plans`: the Director's JSON plan (officer traits, probes, events, decision policy), the model version, and the random seed. Keeping these makes any session reproducible for debugging.
+- `probe_taxonomy`: curated probes with visa types, entry phrasings, escalation ladders and required facts. Advisors own it, and it's versioned.
+- `probe_results`: the Referee's log per probe (quality, facts mentioned, inconsistencies). This feeds weak-area retests.
+- `asked_questions`: the text and a **pgvector** embedding of each question, used by the novelty check
 - `turns`: session, officer question, user transcript (raw and corrected), timestamps, scores JSON, red flags
 - `rewrites`: turn, text, validator verdict
 - `readiness_snapshots`
@@ -283,6 +368,11 @@ RLS rule: a user sees only their own rows. Admin and advisor access is time-boxe
 - Encrypt data at rest (Supabase) and use signed short-lived URLs. Recordings are private and deletable.
 - Use the **paid Gemini API tier or Vertex AI**, where prompts aren't used for training. Confirm this in the current terms and name it in the privacy notice.
 - Applicants aged 17 and under need a guardian consent flow.
+- **Prompt injection through uploads.** A PDF or image can contain hidden text like "ignore previous instructions". Defences:
+  - Extraction runs in an isolated call with a strict output schema and no tools.
+  - Extracted fields go to the user to confirm.
+  - **The Officer and Director never see raw document text, only confirmed profile fields.**
+  - Free-text fields are length-capped and wrapped as data in the prompt.
 - Voice cloning (optional feature): take a consent recording through Google's gate, keep a store of voices that's easy to delete, and never share it.
 - Legal copy has to say three things clearly:
   - we are not a law firm and not affiliated with the US government
@@ -290,7 +380,7 @@ RLS rule: a user sees only their own rows. Admin and advisor access is time-boxe
   - we don't complete visa forms
 
 ### 4.6 Unit economics (rough, per paid user)
-Assume 8 full mocks at 4 min, 40 drills, transcription, grading and extraction:
+Assume 8 full mocks at 4 min (each with a Director plan, a few cents), 40 drills, transcription, grading and extraction:
 - Live audio ≈ $1.00
 - Transcription ≈ $0.20
 - Grading and extraction ≈ $0.30
@@ -394,6 +484,10 @@ Track:
 - **Quarterly transparency report:** outcomes for users who reached Readiness compared with those who didn't, **with a clear warning about selection bias**. Motivated users both practise more and have stronger cases, so this is not a causal claim.
 - **Calibration loop:** reported questions and outcomes feed the officer personas and the scoring weights. Advisors review 50 random debriefs every month for accuracy and tone.
 - **Model evals in CI:** golden Case Profiles, adversarial cases (fabrication attempts), the Ghanaian-accent audio set, and grading consistency (the same answer should get the same score, ± a tolerance).
+- **Realism evals (§2.2.7):**
+  - a quarterly blind real-vs-simulated test
+  - novelty and coverage metrics per session
+  - the grounding-error rate, gated in CI with simulated applicants: an LLM "applicant" with a given case plays against the Officer, so plan quality can be tested without real users
 
 ---
 
@@ -437,11 +531,12 @@ Availability changes quickly, so buy soon if you're going with it. The domain wa
 ## 10. Roadmap
 
 **Phase 0 (weeks 0–2): validation, before code**
-- Interview 20–30 recent applicants in Accra and Kumasi, approved and refused, and record their real question sequences with consent.
+- Interview 20–30 recent applicants in Accra and Kumasi, approved and refused, and record their real question sequences with consent. **This becomes the seed data for the probe taxonomy and the reference set for the blind realism test.**
+- Write the first probe taxonomy (F-1, B1/B2) with the advisors.
 - Run 10 Wizard-of-Oz mocks: a human plays the officer over a call.
 - Engage 1–2 former consular officers as advisors.
 - Register with the DPC.
-- Prototype the Window using a direct Gemini Live WebSocket, and measure latency and data use from Accra.
+- Prototype the Window using a direct Gemini Live WebSocket, and measure latency and data use from Accra. Spike LiveKit + 3.8 Live tool calls (§4.3).
 
 **Phase 1 (weeks 3–10): MVP (F-1 first, then B1/B2)**
 - Build the marketing site with the design system, the hero window and the first 10 guides. Auth, Paystack passes, the Case File plus Case Scan, the Window on LiveKit, the Debrief with the fabrication validator, Readiness, and the eval suite in CI.
@@ -463,6 +558,10 @@ Availability changes quickly, so buy soon if you're going with it. The domain wa
 
 | Risk | Mitigation |
 |---|---|
+| Sessions feel repetitive or generic | Director with memory, novelty rejection, sampled officer traits, per-case probes, and realism metrics (§2.2) |
+| The Officer asks strange or unrealistic questions | Taxonomy-bounded probes, advisor-owned phrasing ladders, the blind realism test |
+| The Officer misstates the user's facts | Officer file limited to confirmed fields, a Referee grounding check, and a target of 0 grounding errors |
+| LiveKit plugin problems with 3.8 Live async tools | Phase 0 spike. Own thin agent, or the direct WebSocket as fallback. |
 | Users treat a simulated "approved" outcome as a prediction | Label it as a training signal in the UI, in the copy and in the debrief. Show no approval percentages. |
 | The model hallucinates a stronger answer that isn't true | Rewrites may only use facts from the confirmed profile, and a validator blocks new entities or numbers. Advisors audit samples. |
 | ASR errors on Ghanaian English lead to unfair scores | Grade from audio, let users correct transcripts, and keep a Ghanaian-English eval set. |
@@ -487,6 +586,8 @@ Availability changes quickly, so buy soon if you're going with it. The domain wa
 - Google Cloud, 3.8 Live developer guide: https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/guides/gemini-3-8-live
 - Gemini API, Live ephemeral tokens: https://ai.google.dev/gemini-api/docs/live-api/ephemeral-tokens
 - Gemini API, Live session management: https://ai.google.dev/gemini-api/docs/live-session
+- Google Cloud, Live API async function calling: https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/live-api/asynchronous-function-calling
+- livekit/agents issue #7302: https://github.com/livekit/agents/issues/7302
 - LiveKit, Gemini Live plugin: https://docs.livekit.io/agents/models/realtime/plugins/gemini/
 - eesel AI, Gemini 3.5 Transcribe: https://www.eesel.ai/blog/gemini-3-5-transcribe
 
@@ -502,6 +603,11 @@ Availability changes quickly, so buy soon if you're going with it. The domain wa
 - Ghana MFA, reversal of visa restrictions: https://mfa.gov.gh/index.php/reversal-of-u-s-visa-restrictions-on-ghana/
 - GhanaWeb, social-media vetting: https://www.ghanaweb.com/GhanaHomePage/business/Why-the-US-Embassy-requires-access-to-social-media-for-student-visa-applications-1988975
 - The Voice of Africa, extra appointment slots: https://thevoiceofafrica.com/2026/02/18/u-s-embassy-in-ghana-opens-1000-new-visa-interview-slots-amid-high-demand/
+- VisaMet, US visa interview questions 2026: https://visamet.com/guides/us-visa-interview-questions-2026-guide
+- EduConnect USA, F-1 interview questions 2026: https://educonnectusa.com/2026/05/f1-visa-interview-questions-2026/
+- NNU Immigration, visa interview questions: https://www.nnuimmigration.com/us-visa-interview-questions/
+- Botelho Law, consular interview questions: https://botelholawgroup.com/consular-processing-interview-questions-2026-guide/
+- AllAfrica, Accra 2024 application figures: https://allafrica.com/stories/202505140274.html
 - Kuck Baxter, 2.5-minute interviews: https://immigration.net/2026/08/10/why-your-visa-interview-is-only-2-5-minutes-long/
 - Boundless, DS-160: https://www.boundless.com/immigration-resources/form-ds-160-explained
 - Manifest Law, visa integrity fee: https://manifestlaw.com/blog/immigration/news/visa-integrity-fee/
