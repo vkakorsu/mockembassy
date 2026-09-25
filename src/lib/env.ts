@@ -4,6 +4,8 @@
  * the Vercel ↔ Supabase integration variables and Supabase's newer key names.
  */
 
+import { siteOrigin } from "@/lib/site";
+
 const first = (...names: string[]) => {
   for (const n of names) {
     const v = process.env[n];
@@ -19,10 +21,8 @@ const first = (...names: string[]) => {
 const OKWAN_SUPABASE_URL = "https://itvgkkwsxyobkwkrrrwg.supabase.co";
 const OKWAN_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_I6nN-G2fBJGDkNydeRnuZQ_6xZqA4Vc";
 
-const vercelUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL;
-
 export const env = {
-  siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? (vercelUrl ? `https://${vercelUrl}` : "http://localhost:3000"),
+  siteUrl: siteOrigin("http://localhost:3000"),
 
   supabaseUrl: first("NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_URL") ?? OKWAN_SUPABASE_URL,
   supabasePublishableKey:
@@ -36,10 +36,10 @@ export const env = {
 
   geminiApiKey: first("GEMINI_API_KEY", "GOOGLE_API_KEY"),
   // Verify these ids against https://ai.google.dev/gemini-api/docs/models before launch.
-  geminiLiveModel: process.env.GEMINI_LIVE_MODEL ?? "gemini-3.8-live",
-  geminiFlashModel: process.env.GEMINI_FLASH_MODEL ?? "gemini-3.8-flash",
+  geminiLiveModel: first("GEMINI_LIVE_MODEL") ?? "gemini-3.8-live",
+  geminiFlashModel: first("GEMINI_FLASH_MODEL") ?? "gemini-3.8-flash",
 
-  paystackSecretKey: process.env.PAYSTACK_SECRET_KEY,
+  paystackSecretKey: first("PAYSTACK_SECRET_KEY"),
 };
 
 export const features = {
