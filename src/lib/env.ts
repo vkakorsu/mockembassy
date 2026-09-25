@@ -12,16 +12,26 @@ const first = (...names: string[]) => {
   return undefined;
 };
 
-export const env = {
-  siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
+/**
+ * The okwan Supabase project's public values. They are designed to be public
+ * (RLS protects the data), so they're safe as defaults; env vars override them.
+ */
+const OKWAN_SUPABASE_URL = "https://itvgkkwsxyobkwkrrrwg.supabase.co";
+const OKWAN_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_I6nN-G2fBJGDkNydeRnuZQ_6xZqA4Vc";
 
-  supabaseUrl: first("NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_URL"),
-  supabasePublishableKey: first(
-    "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-    "SUPABASE_PUBLISHABLE_KEY",
-    "SUPABASE_ANON_KEY",
-  ),
+const vercelUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL;
+
+export const env = {
+  siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? (vercelUrl ? `https://${vercelUrl}` : "http://localhost:3000"),
+
+  supabaseUrl: first("NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_URL") ?? OKWAN_SUPABASE_URL,
+  supabasePublishableKey:
+    first(
+      "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+      "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+      "SUPABASE_PUBLISHABLE_KEY",
+      "SUPABASE_ANON_KEY",
+    ) ?? OKWAN_SUPABASE_PUBLISHABLE_KEY,
   supabaseSecretKey: first("SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY"),
 
   geminiApiKey: first("GEMINI_API_KEY", "GOOGLE_API_KEY"),
