@@ -1,4 +1,5 @@
 import "server-only";
+import { env } from "@/lib/env";
 
 /**
  * Minimal Supabase REST insert using the service role key (server only).
@@ -6,8 +7,8 @@ import "server-only";
  * instead of silently dropping data.
  */
 export async function insertRow(table: string, row: Record<string, unknown>): Promise<"ok" | "not_configured" | "error"> {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = env.supabaseUrl;
+  const key = env.supabaseSecretKey;
   if (!url || !key) return "not_configured";
   const res = await fetch(`${url}/rest/v1/${table}`, {
     method: "POST",

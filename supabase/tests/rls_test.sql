@@ -1,7 +1,7 @@
 -- Run after stub_auth.sql + 20260925000001_init.sql. Fails loudly on any violation.
 \set ON_ERROR_STOP on
 insert into auth.users values ('00000000-0000-0000-0000-00000000000a'), ('00000000-0000-0000-0000-00000000000b');
-insert into public.profiles (id) values ('00000000-0000-0000-0000-00000000000a'), ('00000000-0000-0000-0000-00000000000b');
+-- profiles are created by the on_auth_user_created trigger
 insert into public.cases (id, user_id, visa_type, applicant_name) values
   ('10000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-00000000000a', 'F1', 'Ama'),
   ('10000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-00000000000b', 'B1B2', 'Kofi');

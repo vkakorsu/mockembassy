@@ -9,5 +9,5 @@ $PGBIN/pg_ctl -D "$DIR/data" -o "-k $DIR -p 54329 -c listen_addresses=''" -l "$D
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 PSQL=(psql -h "$DIR" -p 54329 -U postgres -v ON_ERROR_STOP=1 -q)
 "${PSQL[@]}" -f "$ROOT/tests/stub_auth.sql"
-"${PSQL[@]}" -f "$ROOT/migrations/20260925000001_init.sql"
+for m in "$ROOT"/migrations/20260925000001_init.sql "$ROOT"/migrations/20260926000003_app.sql; do "${PSQL[@]}" -f "$m"; done
 "${PSQL[@]}" -f "$ROOT/tests/rls_test.sql"

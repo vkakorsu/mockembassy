@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     consent_whatsapp: true,
   });
   if (result === "not_configured") {
-    console.error("waitlist: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set; signup not stored");
+    console.error("waitlist: Supabase URL or secret key not set; signup not stored");
     return new Response("Sign-ups aren't open yet. Please try again soon.", { status: 503 });
   }
   if (result === "error") {

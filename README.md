@@ -9,17 +9,22 @@ US visa interview practice built for Ghanaians. You upload your documents, then 
 - [`docs/PRICING.md`](docs/PRICING.md): pricing, unit economics and pass rules
 - [`docs/EXPERTS.md`](docs/EXPERTS.md): human coaches and senior experts
 
-## What's built so far (milestone 1)
+## What's built
 
 | Area | Where |
 |---|---|
-| **Interview engine**: the Director (plans each session per user), the probe taxonomy, officer sampling, Case Scan, the Referee (rules-based outcomes) | `src/lib/domain/` |
-| **Pass rules**: the 60-day ceiling, appointment proof, date moves, refunds | `src/lib/domain/pass.ts` |
-| **Marketing site**: the Window hero, the live engine demo, pricing, FAQ, early access | `src/app/page.tsx`, `src/components/home/` |
-| **SEO**: metadata, JSON-LD (Organization, WebSite, SoftwareApplication, FAQPage), robots.txt with AI crawlers, sitemap, manifest, OG image | `src/app/` |
-| **Database**: schema with RLS and tamper guards | `supabase/migrations/` |
-| **Waitlist API**: stores sign-ups in Supabase | `src/app/api/waitlist/route.ts` |
-| **Officer audio**: pre-rendered with Gemini 3.8 Flash TTS | `scripts/render-officer-audio.mts` |
+| **Interview engine**: the Director (plans each session per user), the probe taxonomy, officer sampling, Case Scan, the Referee (rules-based outcomes), officer instructions, the rewrite validator, delivery metrics | `src/lib/domain/` |
+| **Pass rules and entitlements**: the 60-day ceiling, appointment proof, date moves, refunds, free and sprint limits | `src/lib/domain/pass.ts`, `entitlement.ts` |
+| **Marketing site and SEO** | `src/app/page.tsx`, `src/components/home/`, `src/app/{robots,sitemap,manifest,opengraph-image}` |
+| **Auth**: phone code and Google (Supabase), session refresh in `src/proxy.ts` | `src/app/login`, `src/app/auth` |
+| **Cases, documents and fact extraction** (Gemini Flash, with disagreements between documents flagged), and the confirm-your-facts form | `src/app/app/cases/[id]/…`, `src/lib/server/jobs.ts` |
+| **The live Window**: Gemini 3.8 Live via a single-use locked token, with a server-side Referee | `src/components/app/live-room.tsx`, `src/app/api/sessions/…` |
+| **Debrief**: rules-based outcome and reasons, scores, red flags, validated "stronger answer", delivery metrics | `src/app/app/sessions/[id]/debrief` |
+| **Payments**: Paystack MoMo and card, signed webhook, idempotent passes | `src/lib/server/paystack.ts`, `src/app/api/paystack/webhook` |
+| **Database**: schema, RLS, tamper guards, storage buckets | `supabase/migrations/` |
+| **Privacy**: daily deletion of expired documents | `src/app/api/cron/cleanup`, `vercel.json` |
+
+**Keys:** see [`docs/SETUP.md`](docs/SETUP.md). `/setup` shows which integrations are connected.
 
 ## Develop
 

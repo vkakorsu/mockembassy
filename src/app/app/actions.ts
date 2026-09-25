@@ -1,0 +1,306 @@
+"use server";
+
+import { randomUUID } from "node:crypto";
+import { after } from "next/server";
+import { redirect } from "next/navigation";
+import { z } from "zod";
+import { CaseProfile } from "@/lib/domain/case";
+import { planSession, type SessionMode } from "@/lib/domain/director";
+import { FREE_MOCK_SECONDS, type PlanId } from "@/lib/domain/entitlement";
+import { moveInterviewDate } from "@/lib/domain/pass";
+import { probesFor } from "@/lib/domain/probes";
+import { env, features } from "@/lib/env";
+import { requireUser } from "@/lib/server/auth";
+import { runExtraction } from "@/lib/server/jobs";
+import { initializeTransaction, priceFor, PURCHASABLE } from "@/lib/server/paystack";
+import { caseEntitlement, getCase, latestProfile, pastSessions, readinessFrom } from "@/lib/server/repo";
+import { createServiceClient } from "@/lib/supabase/server";
+
+const PLANNER_VERSION = "director-v1";
+
+/* ----------------------------------------------------------------- cases */
+
+const NewCase = z.object({
+  visaType: z.enum(["F1", "B1B2"]),
+  applicantName: z.string().trim().min(1).max(80),
+  interviewDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal("").transform(() => undefined)),
+});
+
+export async function createCase(formData: FormData) {
+  const { user, supabase } = await requireUser();
+  const input = NewCase.parse(Object.fromEntries(formData));
+  const { data, error } = await supabase
+    .from("cases")
+    .insert({
+      user_id: user.id,
+      visa_type: input.visaType,
+      applicant_name: input.applicantName,
+      interview_at: input.interviewDate ? `${input.interviewDate}T09:00:00Z` : null,
+    })
+    .select("id")
+    .single();
+  if (error) throw error;
+  redirect(`/app/cases/${data.id}`);
+}
+
+export async function setInterviewDate(caseId: string, formData: FormData) {
+  const { supabase } = await requireUser();
+  const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).parse(formData.get("interviewDate"));
+  const caseRow = await getCase(supabase, caseId);
+  if (!caseRow) throw new Error("Case not found");
+  const newDate = new Date(`${date}T09:00:00Z`);
+
+  // Moving the date on a paid pass follows the pass rules (docs/PRICING.md §3a).
+  const { data: passes } = await supabase.from("passes").select("*").eq("case_id", caseId).is("refunded_at", null);
+  const pass = passes?.find((p) => p.plan !== "sprint");
+  if (pass && caseRow.interview_at) {
+    const moved = moveInterviewDate(
+      {
+        purchasedAt: new Date(pass.purchased_at),
+        interviewDate: new Date(caseRow.interview_at),
+        hasAppointmentProof: pass.has_appointment_proof,
+        dateMoves: pass.date_moves,
+      },
+      newDate,
+      new Date(),
+      { withNewProof: false },
+    );
+    if (!moved.ok) {
+      redirect(`/app/cases/${caseId}?notice=${moved.reason === "proof_required" ? "proof-required" : "date-in-past"}`);
+    }
+    await createServiceClient().from("passes").update({ date_moves: pass.date_moves + 1 }).eq("id", pass.id);
+  }
+  await supabase.from("cases").update({ interview_at: newDate.toISOString() }).eq("id", caseId);
+  redirect(`/app/cases/${caseId}`);
+}
+
+/* ------------------------------------------------------------- documents */
+
+const DocKind = z.enum([
+  "ds160", "i20", "ds2019", "admission_letter", "bank_statement", "sponsor_letter", "employment_letter",
+  "business_registration", "property", "invitation_letter", "refusal_letter", "appointment_confirmation",
+  "passport_travel_page", "other",
+]);
+
+/** Called after the browser uploads the file to Storage under "<user_id>/<case_id>/…". */
+export async function registerDocument(caseId: string, kind: string, storagePath: string) {
+  const { user, supabase } = await requireUser();
+  const docKind = DocKind.parse(kind);
+  if (!storagePath.startsWith(`${user.id}/${caseId}/`)) throw new Error("Invalid path");
+  const { data, error } = await supabase
+    .from("documents")
+    .insert({ case_id: caseId, kind: docKind, storage_path: storagePath })
+    .select("id")
+    .single();
+  if (error) throw error;
+  if (features.gemini && features.supabaseAdmin) after(() => runExtraction(data.id));
+  return { id: data.id as string };
+}
+
+export async function deleteDocument(documentId: string) {
+  const { supabase } = await requireUser();
+  const { data } = await supabase.from("documents").select("storage_path, case_id").eq("id", documentId).maybeSingle();
+  if (!data) return;
+  await supabase.storage.from("documents").remove([data.storage_path]);
+  await supabase.from("documents").delete().eq("id", documentId);
+  redirect(`/app/cases/${data.case_id}/documents`);
+}
+
+/* --------------------------------------------------------------- profile */
+
+const num = (v: FormDataEntryValue | null) => (v === null || v === "" ? undefined : Number(v));
+const str = (v: FormDataEntryValue | null) => (v === null || String(v).trim() === "" ? undefined : String(v).trim());
+const list = (v: FormDataEntryValue | null) =>
+  String(v ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+export type ConfirmState = { error?: string };
+
+export async function confirmProfile(caseId: string, _prev: ConfirmState, f: FormData): Promise<ConfirmState> {
+  const { supabase } = await requireUser();
+  const caseRow = await getCase(supabase, caseId);
+  if (!caseRow) return { error: "Case not found." };
+  const current = await latestProfile(supabase, caseId);
+
+  const sponsorRel = str(f.get("sponsor.relationship"));
+  const usRel = str(f.get("usContact.relationship"));
+  const refusalYear = num(f.get("refusal.year"));
+  const candidate = {
+    version: (current?.version ?? 0) + 1,
+    visaType: caseRow.visa_type,
+    applicant: {
+      firstName: str(f.get("applicant.firstName")) ?? caseRow.applicant_name.split(" ")[0],
+      age: num(f.get("applicant.age")),
+      maritalStatus: str(f.get("applicant.maritalStatus")) ?? "single",
+      children: num(f.get("applicant.children")) ?? 0,
+      city: str(f.get("applicant.city")) ?? "",
+    },
+    study:
+      caseRow.visa_type === "F1"
+        ? {
+            school: str(f.get("study.school")),
+            program: str(f.get("study.program")),
+            level: str(f.get("study.level")) ?? "masters",
+            startTerm: str(f.get("study.startTerm")) ?? "",
+            i20Year1CostUsd: num(f.get("study.i20Year1CostUsd")),
+            currentOccupation: str(f.get("study.currentOccupation")),
+            postStudyPlan: str(f.get("study.postStudyPlan")),
+          }
+        : undefined,
+    visit:
+      caseRow.visa_type === "B1B2"
+        ? {
+            purpose: str(f.get("visit.purpose")),
+            durationDays: num(f.get("visit.durationDays")),
+            hostRelationship: str(f.get("visit.hostRelationship")),
+            hostCity: str(f.get("visit.hostCity")),
+          }
+        : undefined,
+    funding: {
+      sponsors: sponsorRel
+        ? [
+            {
+              relationship: sponsorRel,
+              occupation: str(f.get("sponsor.occupation")),
+              annualIncomeUsd: num(f.get("sponsor.annualIncomeUsd")),
+            },
+          ]
+        : [],
+      liquidFundsUsd: num(f.get("funding.liquidFundsUsd")) ?? 0,
+      recentLargeDepositUsd: num(f.get("funding.recentLargeDepositUsd")),
+    },
+    ties: {
+      employer: str(f.get("ties.employer")),
+      role: str(f.get("ties.role")),
+      yearsEmployed: num(f.get("ties.yearsEmployed")),
+      ownsBusiness: f.get("ties.ownsBusiness") === "on",
+      ownsProperty: f.get("ties.ownsProperty") === "on",
+    },
+    history: {
+      priorUsVisits: num(f.get("history.priorUsVisits")) ?? 0,
+      otherCountriesVisited: list(f.get("history.otherCountriesVisited")),
+      priorRefusals: refusalYear ? [{ year: refusalYear, section: str(f.get("refusal.section")) ?? "214b" }] : [],
+    },
+    usContacts: usRel
+      ? [{ relationship: usRel, city: str(f.get("usContact.city")), status: str(f.get("usContact.status")) ?? "unknown" }]
+      : [],
+  };
+
+  const parsed = CaseProfile.safeParse(candidate);
+  if (!parsed.success) {
+    const first = parsed.error.issues[0];
+    return { error: `Please check "${first.path.join(" → ")}": ${first.message}` };
+  }
+  const { error } = await supabase
+    .from("case_profiles")
+    .insert({ case_id: caseId, version: parsed.data.version, profile: parsed.data });
+  if (error) return { error: error.message };
+  redirect(`/app/cases/${caseId}?notice=profile-confirmed`);
+}
+
+/* -------------------------------------------------------------- sessions */
+
+export async function startSession(caseId: string, requestedMode: SessionMode) {
+  const { supabase } = await requireUser();
+  const caseRow = await getCase(supabase, caseId);
+  if (!caseRow) throw new Error("Case not found");
+  const current = await latestProfile(supabase, caseId);
+  if (!current) redirect(`/app/cases/${caseId}/profile`);
+
+  const ent = await caseEntitlement(supabase, caseRow);
+  if (ent.kind === "none") redirect(`/app/cases/${caseId}/pass?reason=${encodeURIComponent(ent.reason)}`);
+
+  const history = await pastSessions(supabase, caseId);
+  const relevant = probesFor(caseRow.visa_type).filter((p) => p.relevance(current.profile) > 0).map((p) => p.id);
+  const mode: SessionMode = ent.kind === "free" ? "real" : requestedMode;
+  const seed = randomUUID();
+  const plan = planSession({
+    profile: current.profile,
+    pastSessions: history,
+    readiness: readinessFrom(history, relevant),
+    mode,
+    seed,
+  });
+  if (ent.kind === "free") {
+    plan.targetDurationSec = FREE_MOCK_SECONDS;
+    plan.probes = plan.probes.slice(0, 2);
+  }
+
+  // Sessions are written by the server only (users can't forge plans).
+  const admin = createServiceClient();
+  const { data, error } = await admin
+    .from("sessions")
+    .insert({
+      case_id: caseId,
+      profile_version: current.version,
+      mode,
+      plan,
+      seed,
+      planner_version: PLANNER_VERSION,
+      is_free: ent.kind === "free",
+    })
+    .select("id")
+    .single();
+  if (error) throw error;
+
+  // Lock the applicant identity after the first full mock (docs/PRICING.md §3a).
+  if (ent.kind === "full" && !caseRow.identity_locked_at) {
+    await admin.from("cases").update({ identity_locked_at: new Date().toISOString() }).eq("id", caseId);
+  }
+  redirect(`/app/sessions/${data.id}`);
+}
+
+export async function rateSession(sessionId: string, rating: number) {
+  const { supabase } = await requireUser();
+  await supabase.from("sessions").update({ realism_rating: z.number().int().min(1).max(5).parse(rating) }).eq("id", sessionId);
+}
+
+/* --------------------------------------------------------------- billing */
+
+export async function buyPlan(caseId: string, plan: PlanId) {
+  const { user, supabase } = await requireUser();
+  if (!features.paystack) redirect("/setup");
+  if (!PURCHASABLE.includes(plan)) throw new Error("Unknown plan");
+  const caseRow = await getCase(supabase, caseId);
+  if (!caseRow) throw new Error("Case not found");
+
+  const reference = `okw_${randomUUID().replace(/-/g, "")}`;
+  const tx = await initializeTransaction({
+    // Paystack requires an email; phone-only users get a stable placeholder on our domain.
+    email: user.email ?? `${user.id}@users.okwan.ai`,
+    amountPesewas: await priceFor(createServiceClient(), plan),
+    reference,
+    callbackUrl: `${env.siteUrl}/app/billing/return`,
+    metadata: { case_id: caseId, user_id: user.id, plan },
+  });
+  redirect(tx.authorization_url);
+}
+
+export async function activatePassNow(caseId: string, passId: string) {
+  const { supabase } = await requireUser();
+  const caseRow = await getCase(supabase, caseId);
+  if (!caseRow) throw new Error("Case not found");
+  await createServiceClient()
+    .from("passes")
+    .update({ activated_at: new Date().toISOString() })
+    .eq("id", passId)
+    .eq("case_id", caseId)
+    .is("activated_at", null);
+  redirect(`/app/cases/${caseId}`);
+}
+
+/* -------------------------------------------------------------- outcomes */
+
+export async function reportOutcome(caseId: string, formData: FormData) {
+  const { supabase } = await requireUser();
+  const result = z.enum(["approved", "administrative_221g", "refused_214b", "refused_other"]).parse(formData.get("result"));
+  await supabase.from("outcomes").upsert({
+    case_id: caseId,
+    result,
+    reported_questions: list(formData.get("questions")),
+    consent_to_aggregate: formData.get("consent") === "on",
+  });
+  redirect(`/app/cases/${caseId}?notice=outcome-thanks`);
+}
