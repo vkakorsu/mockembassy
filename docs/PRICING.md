@@ -39,10 +39,13 @@ All prices include **20% VAT**, and every one can be paid with MTN MoMo, Telecel
 | **Sprint** | **GHS 149** (≈ $13) | **3 full mocks** with full debriefs. Valid 14 days. | Interviews less than a week away, or people who aren't sure yet. **The whole GHS 149 counts toward a Pass upgrade.** |
 | **Interview Pass** ⭐ | **GHS 349** (≈ $30) | **Unlimited mocks** (fair use: 3 full mocks a day) until **your interview date + 7 days**. Everything else is included:<br>• the Director-planned sessions<br>• full debriefs<br>• Readiness and the Consistency tracker<br>• the dress rehearsal<br>• the day-of plan<br>• WhatsApp drills<br>• the drill library | The default. About **3.9% of F-1 fees**, and **one-fifth of a single consultant hour**. |
 | **Family Pass** | **GHS 599** (≈ $52) | 2 Interview Passes plus **joint-interview mode**: the officer questions a couple, or a parent and child, together at the same window. | Parents travelling together (B1/B2), spouses, siblings |
-| **Pass + Expert** | **GHS 899** (≈ $78) | An Interview Pass plus **one 20-minute live mock** with a trained human coach. The coach reviews your Case Scan and your weakest recorded answers beforehand. | Refused before, complex cases, and anxious applicants |
+| **Pass + Coach** | **GHS 899** (≈ $78) | An Interview Pass plus **one 20-minute live mock with a certified Okwan Coach**. The coach reviews your Case Scan and your weakest recorded answers beforehand, and their notes feed your future AI sessions. | Anxious applicants and people who want a human check |
+| **Pass + Senior Expert** | **GHS 1,499** (≈ $130) | An Interview Pass plus **one 25-minute live mock with a verified senior expert** (a former consular officer or a senior US-visa professional), who reviews your case in writing beforehand. The number of slots is limited. | Refused before, complex histories, high-stakes cases |
 
 **Add-ons** (bought after a pass):
-- **Extra expert session:** GHS 499.
+- **Async Coach Review:** GHS 299. A coach watches one of your recorded AI mocks and leaves voice and text notes on the timeline within 48 hours.
+- **Async Senior Review:** GHS 599. The same, done by a senior expert.
+- **Extra live Coach session:** GHS 599. **Extra live Senior session:** GHS 1,199.
 - **Gift a Pass:** $29, paid by card or in cedis. Family abroad often pays for a student's application costs. Your uncle in London should be able to send the pass by WhatsApp link.
 
 **Institutions** (agencies, schools, churches, scholarship bodies):
@@ -66,8 +69,35 @@ All prices include **20% VAT**, and every one can be paid with MTN MoMo, Telecel
 - **Second Attempt:**
   - If you're refused, your pass **reactivates free for your next interview within 12 months**. You also get a free Reapplication Review, covering what has *materially* changed and whether to wait.
   - It costs us little (marginal model costs only), it's honest because it doesn't promise an outcome, and the story spreads.
-- **The "Interview moved?" guarantee:** the pass follows your new date at no charge.
+- **The "Interview moved?" guarantee:** the pass follows your new date at no charge (the rules are in §3a).
 - **No auto-renewals, ever.**
+
+### 3a. What if someone lies about their interview date? (pass rules)
+
+**Design rule:** honest users should never notice these rules. Only abuse runs into them. The goal isn't to catch every liar. It's to make sure lying can't earn more than a bounded, still-profitable amount of usage.
+
+1. **Every pass has a hard ceiling:** the interview date + 7 days, **or 60 days of use from activation, whichever comes first**. A fake date two years away still gets at most 60 days. That's the worst case already modelled in §4, and it's still profitable at the 3-mocks-a-day fair-use cap.
+2. **Buy now, activate later.** Real Accra appointments can be months away, and those applicants shouldn't need to lie. They can buy today and the 60-day clock starts only when they activate the pass, or automatically 45 days before the interview date they entered.
+3. **Proof is optional, and it unlocks more.** Uploading the **appointment confirmation** from the official scheduling portal:
+   - lifts the 60-day ceiling to "interview date + 7 days"
+   - is extracted automatically (date, time, post, applicant name)
+   - is checked against the Case Profile name
+
+   Without proof, the product works fine, just within the 60-day ceiling.
+4. **Moving a date:**
+   - The **first move is free, no questions asked.**
+   - Further moves need a new appointment confirmation.
+   - Moves never reset the 60-day activation clock unless a confirmation is uploaded.
+5. **A pass belongs to one applicant.** Account sharing is the more likely abuse ("my friend and I share one pass"), more than fake dates, so:
+   - A pass is bound to **one Case**: applicant name, DS-160 confirmation number (AA…), and passport last 4 digits (masked).
+   - After the first full mock, the Case identity is locked. A different applicant needs their own pass (or the Family Pass).
+   - At most 2 active devices, and one live session at a time.
+   - Soft signal only: if the voice in the recordings changes sharply between sessions, we show a friendly "is this still you?" prompt. It's never used for automatic bans.
+6. **Second Attempt needs evidence.** The pass reactivates after an upload of the **refusal letter (214(b) / 221(g) sheet)** and a **new appointment confirmation**. It covers one reactivation per pass, within 12 months.
+7. **Refunds:** at most one full mock used, within 7 days of purchase, and one refund per phone number or Case.
+8. **Expert sessions** can't be abused this way. They're booked slots, sold only when there is a free slot before the interview date (see [`EXPERTS.md`](EXPERTS.md)).
+
+**Worst-case cost of a liar:** 60 days × 3 mocks a day ≈ GHS 400 in COGS, and only if the user practises every single day. That's slightly above the Pass price and very rare. The realistic abuser costs far less, because practising daily for two months is tiring. We should monitor it (usage percentiles per pass in PostHog). If the 99th percentile is ever unprofitable, lower the daily cap for passes without proof to 2 mocks.
 
 ---
 
@@ -81,7 +111,10 @@ VAT is 20% of the net price and is paid to GRA. Paystack takes **1.95%** on loca
 | Interview Pass (typical) | 349 | 290.8 | 6.8 | ~23 | **~261 (≈ $22.70)** | 75% |
 | Interview Pass (**worst case**: 3 mocks/day for 30 days) | 349 | 290.8 | 6.8 | ~207 | **~77** | 22% (still positive) |
 | Family Pass | 599 | 499.2 | 11.7 | ~40 | **~448** | 75% |
-| Pass + Expert (coach paid GHS 300 per session) | 899 | 749.2 | 17.5 | ~323 | **~409** | 45% |
+| Pass + Coach (coach paid GHS 300 per session, including prep) | 899 | 749.2 | 17.5 | ~323 | **~409** | 45% |
+| Pass + Senior Expert (expert paid about $60, including prep) | 1,499 | 1,249.2 | 29.2 | ~713 | **~507** | 34% |
+| Async Coach Review (coach paid GHS 120) | 299 | 249.2 | 5.8 | 120 | **~123** | 41% |
+| Async Senior Review (expert paid about $25) | 599 | 499.2 | 11.7 | ~288 | **~200** | 33% |
 | Institutional seat | 199 | 165.8 | 3.9 | ~23 | **~139** | 70% |
 
 - **Fair use is what keeps "unlimited" safe.** Even the heaviest realistic user is profitable. Real users will average far below the cap, because the interview date ends the pass.

@@ -498,7 +498,11 @@ Track:
 - **Sprint:** GHS 149 for 3 mocks. The full amount counts toward a Pass upgrade.
 - **Interview Pass ⭐:** GHS 349, with unlimited fair-use practice until your interview date + 7 days. That's about 3.9% of F-1 government fees.
 - **Family Pass:** GHS 599, including joint-interview mode.
-- **Pass + Expert:** GHS 899, including a 20-minute human mock.
+- **Pass + Coach:** GHS 899, including a 20-minute live mock with a certified Coach.
+- **Pass + Senior Expert:** GHS 1,499, with a former consular officer or senior visa professional.
+- **Async expert reviews:** GHS 299 (Coach) or GHS 599 (Senior).
+- **How experts work inside the product (vetting, the Window, feedback into the AI, payouts):** [`EXPERTS.md`](EXPERTS.md).
+- **Pass rules against fake interview dates and account sharing:** [`PRICING.md`](PRICING.md) §3a.
 - **Gift a Pass** for diaspora relatives: $29.
 - **Institutional seats:** GHS 199–249.
 - **Launch price:** GHS 249 for the first 1,000 passes.
