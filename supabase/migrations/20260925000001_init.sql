@@ -29,7 +29,7 @@ create policy "own profile: read" on public.profiles for select using (id = auth
 create policy "own profile: update" on public.profiles for update using (id = auth.uid()) with check (id = auth.uid());
 
 -- Users can't promote themselves to coach/senior/admin.
-create function public.guard_profile_role() returns trigger language plpgsql as $$
+create function public.guard_profile_role() returns trigger language plpgsql set search_path = '' as $$
 begin
   if auth.uid() is not null and new.role is distinct from old.role then
     raise exception 'role can only be changed by an admin';
@@ -60,7 +60,7 @@ create policy "own cases: update" on public.cases for update
   using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 -- Identity fields can't change after the first full mock (docs/PRICING.md §3a).
-create function public.guard_case_identity() returns trigger language plpgsql as $$
+create function public.guard_case_identity() returns trigger language plpgsql set search_path = '' as $$
 begin
   if old.identity_locked_at is not null and (
     new.applicant_name is distinct from old.applicant_name or
@@ -158,7 +158,7 @@ create policy "own sessions: rate" on public.sessions for update
   using (exists (select 1 from public.cases c where c.id = case_id and c.user_id = auth.uid()));
 
 -- Users may only change their realism rating; everything else is service-written.
-create function public.guard_session_update() returns trigger language plpgsql as $$
+create function public.guard_session_update() returns trigger language plpgsql set search_path = '' as $$
 begin
   if auth.uid() is not null and (
     new.plan is distinct from old.plan or new.outcome is distinct from old.outcome or
@@ -219,7 +219,7 @@ create policy "own turns: correct transcript" on public.turns for update
     where s.id = session_id and c.user_id = auth.uid()
   ));
 
-create function public.guard_turn_update() returns trigger language plpgsql as $$
+create function public.guard_turn_update() returns trigger language plpgsql set search_path = '' as $$
 begin
   if auth.uid() is not null and (
     new.session_id is distinct from old.session_id or new.seq is distinct from old.seq or
@@ -249,3 +249,5 @@ create policy "own outcome: read" on public.outcomes for select
   using (exists (select 1 from public.cases c where c.id = case_id and c.user_id = auth.uid()));
 create policy "own outcome: write" on public.outcomes for insert
   with check (exists (select 1 from public.cases c where c.id = case_id and c.user_id = auth.uid()));
+create policy "own outcome: update" on public.outcomes for update
+  using (exists (select 1 from public.cases c where c.id = case_id and c.user_id = auth.uid()));

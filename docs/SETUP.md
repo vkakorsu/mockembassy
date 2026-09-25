@@ -4,6 +4,11 @@ The app runs without any keys. Each feature shows a "not configured" state until
 
 ## 1. Supabase
 
+**Status (26 Sep 2026):**
+- Project **`okwan`** (ref `itvgkkwsxyobkwkrrrwg`, eu-west-1) has all four migrations applied. The security advisors are clean, apart from two intentional notes: `waitlist` and `asked_questions` are server-only.
+- **Remaining steps:** set the environment variables in Vercel (step 1) and enable Phone auth (step 3). Step 2 is already done for this project.
+
+
 1. **Environment variables.** If Supabase is connected through the Vercel integration, these are already set:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY` (or `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`)
