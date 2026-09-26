@@ -257,8 +257,9 @@ export function planSession(input: DirectorInput): SessionPlan {
     noveltyRate: probes.length ? novel / probes.length : 1,
     notes: (input.notes ?? []).slice(0, 30).map((n) => ({ id: n.id, text: n.text, source: n.sourceKind, onScreen: isOnScreen(n.sourceKind) })),
     folder: [...new Set(input.folder ?? [])].slice(0, 20),
-    // Drawn last so it doesn't change the rest of a seeded plan.
-    fingerprintsAtWindow: mode !== "practice" && rng() < 0.5,
+    // The full window choreography belongs in the dress rehearsal; elsewhere it's
+    // time that doesn't train answers (and Accra's exact procedure is unconfirmed).
+    fingerprintsAtWindow: mode === "dress_rehearsal",
   });
 }
 

@@ -37,15 +37,14 @@ describe("drills", () => {
 });
 
 describe("fingerprints at the window", () => {
-  it("happens in some real sessions, never in practice or drills, and the officer is told how", () => {
-    const real = Array.from({ length: 20 }, (_, i) => planSession({ ...base, mode: "real", seed: `fp${i}` }));
-    const withScan = real.filter((p) => p.fingerprintsAtWindow);
-    expect(withScan.length).toBeGreaterThan(3);
-    expect(withScan.length).toBeLessThan(17);
-    expect(buildOfficerInstruction(withScan[0], amaF1)).toContain("scan_fingerprints");
-    expect(buildOfficerInstruction(real.find((p) => !p.fingerprintsAtWindow)!, amaF1)).not.toContain("scan_fingerprints and say");
-    expect(planSession({ ...base, mode: "practice", seed: "p" }).fingerprintsAtWindow).toBe(false);
-    const probe = real[0].probes[0].probeId;
-    expect(planDrill({ ...base, seed: "d" }, probe)?.fingerprintsAtWindow).toBeUndefined();
+  it("happen only in the dress rehearsal", () => {
+    const rehearsal = planSession({ ...base, mode: "dress_rehearsal", seed: "fp" });
+    expect(rehearsal.fingerprintsAtWindow).toBe(true);
+    expect(buildOfficerInstruction(rehearsal, amaF1)).toContain("scan_fingerprints");
+    for (const mode of ["real", "practice"] as const) {
+      const plan = planSession({ ...base, mode, seed: "fp" });
+      expect(plan.fingerprintsAtWindow).toBe(false);
+      expect(buildOfficerInstruction(plan, amaF1)).not.toContain("scan_fingerprints and say");
+    }
   });
 });

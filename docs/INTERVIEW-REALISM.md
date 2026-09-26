@@ -98,7 +98,7 @@ Research refresh, and how the interview compares, dimension by dimension. "Verif
 | F, M and J applicants must set social media to public; officers may ask about what they find. | [Shorelight](https://shorelight.com/student-stories/us-visa-social-media-vetting), [US Mission Mexico](https://mx.usembassy.gov/student-visa-social-media-vetting/) | Case Scan flags it; officer questions about posts are rare, so not simulated. |
 | Ghana F-1 refusal 81% (2025, up from 72%); B1/B2 adjusted refusal 64.3% (FY25). | [Newsweek](https://www.newsweek.com/us-student-visa-refusals-hit-record-high-11818845), [State Dept FY25](https://travel.state.gov/content/dam/visas/Statistics/Non-Immigrant-Statistics/RefusalRates/FY25.pdf) | Tougher bar for sceptical officers (§5) and fast refusals (below). |
 | $250 visa integrity fee is law but, as of March 2026, not yet collected; charged at issuance only. | [Ellis](https://www.ellis.com/resources/visa-integrity-fee), [BU ISSO](https://www.bu.edu/isso/2026/05/19/visa-integrity-fee/) | Nothing in the interview; revisit the checklist when collection starts. |
-| Ten-print scan is taken "immediately preceding the visa interview" and the applicant attests under penalty of perjury. | [US Embassy Thailand, interview procedures](https://th.usembassy.gov/nonimmigrant-visa-interview-procedures/), 9 FAM 403.5 | **Added**: in about half of real sessions the officer verifies fingerprints at the window (left four, right four, thumbs) before questions. Accra's exact choreography is still to confirm. |
+| Ten-print scan is taken "immediately preceding the visa interview" and the applicant attests under penalty of perjury. | [US Embassy Thailand, interview procedures](https://th.usembassy.gov/nonimmigrant-visa-interview-procedures/), 9 FAM 403.5 | **Added** to the dress rehearsal: the officer verifies fingerprints at the window (left four, right four, thumbs) before questions. Accra's exact choreography is still to confirm. |
 | Most interviews last 3–5 minutes in total; the officer has read the DS-160 and forms an impression in the first seconds; long answers read as rehearsed. | [VisaMet](https://visamet.com/guides/us-visa-interview-questions-2026-guide), former-officer accounts | Matches: variable 60–240 s, first-minute grading, cut-ins. **Added** fast refusals. |
 
 ### Scorecard
@@ -106,11 +106,11 @@ Research refresh, and how the interview compares, dimension by dimension. "Verif
 | Dimension | Status | Notes |
 |---|---|---|
 | Opening: greeting, passport (and I-20) through the slot | Verified | Handover button; silent handover assumed after 8 s. |
-| Fingerprint verification at the window | Built | Blocking `scan_fingerprints`; three scanner presses. Not in the free mock, practice or drills. |
+| Fingerprint verification at the window | Built | Blocking `scan_fingerprints`; three scanner presses. **Dress rehearsal only**: elsewhere it's time that doesn't train answers, and Accra's exact procedure is unconfirmed. |
 | Officer reads the file, not the folder | Verified | On-screen notes vs folder documents requested with `request_document`. |
 | Question selection tailored to the case and history | Verified | Director + notes; novelty against the last 3 sessions. |
 | Follow-up depth | Built | Now scales with scepticism: 1, 2 or 3 follow-ups on a vague answer (was always 1). |
-| Fast decisions | Built | A key contradiction or two weak key answers now end the interview (not in practice). Early approvals already existed. |
+| Fast decisions | Built | An explicitly recorded contradiction on a key topic (`log_inconsistency`: said vs on file, logged only when the officer is sure) or two weak key answers end the interview (not in practice). A bare "contradiction" judgement doesn't, because it may come from a mishearing. The debrief lists topics not reached, each with a drill. |
 | Reply timing | Verified | Median well under 1 s after the fix; "The officer is typing…" shown during deliberate typing pauses. |
 | Interruptions | Built, unverified live | Client-timed cut-ins for impatient officers. Needs a live check. |
 | Decision lines | Verified | 214(b), 221(g), approval wording. |

@@ -5,7 +5,8 @@ import { AnswerAudioProvider, PlayAnswer } from "@/components/app/answer-audio";
 import { AutoRefresh } from "@/components/app/auto-refresh";
 import { BackLink, Button, Card, PageTitle } from "@/components/app/ui";
 import { deliveryNotes, type DeliveryMetrics, type VoiceSummary } from "@/lib/domain/delivery";
-import type { SessionPlan } from "@/lib/domain/director";
+import { NOTE_PROBE_PREFIX, type SessionPlan } from "@/lib/domain/director";
+import { documentLabel } from "@/lib/domain/notes";
 import { requireUser } from "@/lib/server/auth";
 
 const OUTCOME = {
@@ -44,7 +45,7 @@ export default async function DebriefPage(props: PageProps<"/app/sessions/[id]/d
   const { supabase } = await requireUser(`/app/sessions/${id}/debrief`);
   const { data: s } = await supabase
     .from("sessions")
-    .select("id, case_id, plan, outcome, decision_reasons, debrief, debrief_status, realism_rating, started_at, ended_at, recording_path")
+    .select("id, case_id, plan, outcome, decision_reasons, debrief, debrief_status, realism_rating, started_at, ended_at, recording_path, referee_state")
     .eq("id", id)
     .maybeSingle();
   if (!s) notFound();
@@ -67,6 +68,18 @@ export default async function DebriefPage(props: PageProps<"/app/sessions/[id]/d
   const debrief = s.debrief as { summary?: string; top_fixes?: string[]; first_minute_seqs?: number[] } | null;
   const grading = s.debrief_status === "pending" || s.debrief_status === "running";
   const drill = plan.mode === "drill";
+  // Topics the officer planned but never reached (a fast decision, or time ran out): drill them instead.
+  const reached = new Set(((s.referee_state as { turns?: { probeId: string }[] } | null)?.turns ?? []).map((t) => t.probeId));
+  const unreached = drill
+    ? []
+    : plan.probes
+        .filter((p) => !reached.has(p.probeId))
+        .map((p) => {
+          const note = p.probeId.startsWith(NOTE_PROBE_PREFIX)
+            ? plan.notes?.find((n) => `${NOTE_PROBE_PREFIX}${n.id}` === p.probeId)
+            : undefined;
+          return { id: p.probeId, label: note ? `A question about your ${documentLabel(note.source)}` : `“${p.entry}”` };
+        });
   const planned = new Set(plan.probes.map((p) => p.probeId));
   // Playback needs the WAV recording, whose time 0 matches the turn timings.
   let audioSrc: string | null = null;
@@ -130,6 +143,28 @@ export default async function DebriefPage(props: PageProps<"/app/sessions/[id]/d
               </>
             )}
           </Card>
+          {unreached.length > 0 && !grading && (
+            <Card>
+              <h2 className="font-display text-2xl uppercase">Not reached</h2>
+              <p className="mt-1 text-sm text-muted">
+                {s.outcome === "refused_214b" || s.outcome === "administrative_221g"
+                  ? "The officer decided before getting to these. Real officers often do. Practise them one at a time."
+                  : "The officer didn't get to these. Practise them one at a time."}
+              </p>
+              <ul className="mt-3 divide-y divide-line">
+                {unreached.map((u) => (
+                  <li key={u.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                    <span className="min-w-0">{u.label}</span>
+                    <form action={startDrill.bind(null, s.case_id, u.id)}>
+                      <button className="shrink-0 rounded-[3px] border border-ink px-3 py-1.5 text-xs font-semibold hover:bg-ink hover:text-on-ink">
+                        Drill ▸
+                      </button>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
           <Card>
             <h2 className="font-display text-2xl uppercase">Did this feel real?</h2>
             <div className="mt-3 flex gap-2">

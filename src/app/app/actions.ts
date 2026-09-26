@@ -286,7 +286,6 @@ export async function startSession(caseId: string, requestedMode: SessionMode) {
   });
   if (ent.kind === "free") {
     plan.targetDurationSec = FREE_MOCK_SECONDS;
-    plan.fingerprintsAtWindow = false; // 90 seconds is for questions
     // Two topics; if there's a question from their own documents, it's one of them.
     const own = plan.probes.find((p) => p.probeId.startsWith(NOTE_PROBE_PREFIX));
     const rest = plan.probes.filter((p) => p !== own);
