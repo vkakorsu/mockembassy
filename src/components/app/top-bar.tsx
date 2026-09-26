@@ -9,8 +9,8 @@ export interface TopBarCredits {
   buyHref: string;
 }
 
-/** The app's top bar: logo, what's left to use, account. */
-export function TopBar({ credits, email }: { credits: TopBarCredits; email: string }) {
+/** The app's top bar: logo, what's left to use, Home and Sign out. */
+export function TopBar({ credits }: { credits: TopBarCredits }) {
   const hasCredits = credits.interviews > 0 || credits.drills > 0;
   return (
     <header className="sticky top-0 z-30 border-b border-ink bg-paper/95 backdrop-blur supports-[backdrop-filter]:bg-paper/85">
@@ -42,9 +42,6 @@ export function TopBar({ credits, email }: { credits: TopBarCredits; email: stri
               {hasCredits ? "Get more" : "Get interviews"}
             </span>
           </Link>
-          <span className="mx-1 hidden max-w-[14rem] truncate text-muted lg:inline" title={email}>
-            {email}
-          </span>
           <Link href="/app" className="flex h-9 items-center rounded-[3px] border border-ink px-3 font-semibold hover:bg-ink hover:text-on-ink">
             Home
           </Link>

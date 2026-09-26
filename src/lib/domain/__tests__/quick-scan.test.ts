@@ -72,3 +72,12 @@ describe("B1/B2 checklists", () => {
     expect(qs).toContain("b.purpose.trip");
   });
 });
+
+describe("checklist ids", () => {
+  it("are all accepted by the server when ticked", async () => {
+    const { CHECKLIST_ID } = await import("../checklist");
+    const f1 = { ...amaF1, funding: { ...amaF1.funding, sponsors: [{ relationship: "uncle" }], recentLargeDepositUsd: 9000 } };
+    const ids = [...whatToBring(f1), ...whatToBring({ ...kofiB1B2, visit: { ...kofiB1B2.visit!, purpose: "business meeting" } })].map((i) => i.id);
+    for (const id of ids) expect(id).toMatch(CHECKLIST_ID);
+  });
+});

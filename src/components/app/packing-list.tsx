@@ -1,6 +1,6 @@
 "use client";
 
-import { useOptimistic, useTransition } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import type { ChecklistGroup, ChecklistItem } from "@/lib/domain/checklist";
 
 const GROUP_NOTE: Record<ChecklistGroup, string> = {
@@ -33,6 +33,7 @@ export function PackingList({
     return next;
   });
   const [, startTransition] = useTransition();
+  const [failed, setFailed] = useState(false);
   const groups = [...new Set(items.map((i) => i.group))];
   const required = items.filter((i) => i.group === "Required");
   const requiredPacked = required.filter((i) => optimistic.has(i.id)).length;
@@ -48,6 +49,11 @@ export function PackingList({
           <span className="text-refused"> · {required.length - requiredPacked} required still to pack</span>
         )}
       </p>
+      {failed && (
+        <p role="alert" className="text-sm text-refused">
+          Couldn&rsquo;t save that tick. Check your connection and try again.
+        </p>
+      )}
       {groups.map((g) => (
         <div key={g}>
           <p className="label text-fg">{g}</p>
@@ -67,7 +73,9 @@ export function PackingList({
                         onChange={() =>
                           startTransition(async () => {
                             toggle(i.id);
-                            await setPacked(i.id, !isPacked);
+                            setFailed(false);
+                            // If saving fails, the tick springs back (the optimistic state ends) and we say so.
+                            await setPacked(i.id, !isPacked).catch(() => setFailed(true));
                           })
                         }
                         className="mt-0.5 size-4 shrink-0 accent-[var(--stamp)]"

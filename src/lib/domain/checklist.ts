@@ -9,6 +9,9 @@ import { fillTemplate, isFillable, probesFor } from "./probes";
  * visitor visa pages; US Embassy Ghana nonimmigrant visa instructions.
  */
 
+/** Checklist item ids are stored on the case; this is what the server accepts. */
+export const CHECKLIST_ID = /^[a-z0-9_]{1,40}$/;
+
 export type ChecklistGroup = "Required" | "Likely to be asked for" | "Good to have";
 
 export interface ChecklistItem {

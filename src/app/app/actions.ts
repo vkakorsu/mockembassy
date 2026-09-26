@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { CaseProfile } from "@/lib/domain/case";
+import { CHECKLIST_ID } from "@/lib/domain/checklist";
 import { ExtractedFacts } from "@/lib/domain/draft";
 import { NOTE_PROBE_PREFIX, planDrill, planSession, type SessionMode } from "@/lib/domain/director";
 import type { CaseNote, NoteCategory } from "@/lib/domain/notes";
@@ -70,7 +71,7 @@ export async function setPacked(caseId: string, itemId: string, isPacked: boolea
   const { supabase } = await requireUser();
   const caseRow = await getCase(supabase, caseId);
   if (!caseRow) throw new Error("Case not found");
-  const id = z.string().regex(/^[a-z_]{1,40}$/).parse(itemId);
+  const id = z.string().regex(CHECKLIST_ID).parse(itemId);
   const current = new Set<string>(caseRow.checklist_packed ?? []);
   if (isPacked) current.add(id);
   else current.delete(id);
