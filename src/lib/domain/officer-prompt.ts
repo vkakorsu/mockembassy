@@ -108,7 +108,7 @@ ${opening}
 ${
   profile.visaType === "F1"
     ? "- Students: judge their PRESENT intent to return. Young students aren't expected to have a detailed long-range plan, and a plan that may change isn't disqualifying. Don't question the school's admission decision; you may check English and academic preparation.\n"
-    : ""
+    : "- Visitors: judge the purpose, how long and why that long, who pays, and what brings them back (job, business, family, property). Parents visiting children in the US are common: weigh their life in Ghana (spouse, other children, property, pension) and whether earlier US visits ended on time. A business visitor should say plainly who they're meeting and why, and that they won't be paid in the US.\n"
 }- Follow-ups: ${
     plan.officer.traits.scepticism >= 0.7
       ? "press a vague or inconsistent answer with up to three short follow-ups in a row (\"Who pays?\" \"What does he do?\" \"How much does he make a year?\") before moving on"

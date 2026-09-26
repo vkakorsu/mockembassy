@@ -1,0 +1,58 @@
+import Link from "next/link";
+import { Logo } from "@/components/logo";
+import { packLabel } from "@/lib/labels";
+
+export interface TopBarCredits {
+  plan: string | null;
+  interviews: number;
+  drills: number;
+  buyHref: string;
+}
+
+/** The app's top bar: logo, what's left to use, account. */
+export function TopBar({ credits, email }: { credits: TopBarCredits; email: string }) {
+  const hasCredits = credits.interviews > 0 || credits.drills > 0;
+  return (
+    <header className="sticky top-0 z-30 border-b border-ink bg-paper/95 backdrop-blur supports-[backdrop-filter]:bg-paper/85">
+      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
+        <Link href="/app" aria-label="Your cases" className="shrink-0">
+          <Logo />
+        </Link>
+        <div className="flex items-center gap-2 text-sm">
+          {/* What's left to use, like a ticket stub: the pack, the balance, and more. */}
+          <Link
+            href={credits.buyHref}
+            title="Interviews and drills left"
+            className="group flex h-9 items-stretch overflow-hidden rounded-[3px] border border-ink"
+          >
+            <span className="label hidden items-center bg-ink px-2.5 text-on-ink sm:flex">
+              {credits.plan ? packLabel(credits.plan) : "Free"}
+            </span>
+            <span className="flex items-center gap-1.5 px-3 tabular">
+              <strong>{credits.interviews}</strong>
+              <span className="text-muted">
+                <span className="sm:hidden">left</span>
+                <span className="hidden sm:inline">interview{credits.interviews === 1 ? "" : "s"}</span>
+              </span>
+              <span className="hidden text-muted sm:inline">·</span>
+              <strong className="hidden sm:inline">{credits.drills}</strong>
+              <span className="hidden text-muted sm:inline">drill{credits.drills === 1 ? "" : "s"}</span>
+            </span>
+            <span className="hidden items-center border-l border-ink px-3 font-semibold text-stamp group-hover:bg-stamp group-hover:text-on-ink md:flex">
+              {hasCredits ? "Get more" : "Get interviews"}
+            </span>
+          </Link>
+          <span className="mx-1 hidden max-w-[14rem] truncate text-muted lg:inline" title={email}>
+            {email}
+          </span>
+          <Link href="/app" className="flex h-9 items-center rounded-[3px] border border-ink px-3 font-semibold hover:bg-ink hover:text-on-ink">
+            Home
+          </Link>
+          <form action="/auth/signout" method="post">
+            <button className="h-9 rounded-[3px] border border-line px-3 text-muted hover:border-ink hover:text-fg">Sign out</button>
+          </form>
+        </div>
+      </div>
+    </header>
+  );
+}

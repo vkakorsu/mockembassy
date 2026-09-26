@@ -54,3 +54,21 @@ describe("what to bring", () => {
     expect(qs.every((q) => !q.question.includes("{"))).toBe(true);
   });
 });
+
+describe("B1/B2 checklists", () => {
+  it("fit the visitor, not a student", () => {
+    const retiree = { ...kofiB1B2, ties: { ...kofiB1B2.ties, employer: undefined, ownsBusiness: false }, visit: { ...kofiB1B2.visit!, purpose: "visit my daughter" } };
+    const ids = whatToBring(retiree).map((i) => i.id);
+    expect(ids).toEqual(expect.arrayContaining(["passport", "ds160", "income"]));
+    expect(ids).not.toEqual(expect.arrayContaining(["i20"]));
+    expect(ids).not.toContain("sevis");
+    const trip = { ...kofiB1B2, visit: { ...kofiB1B2.visit!, purpose: "Attend a medical conference" } };
+    expect(whatToBring(trip).map((i) => i.id)).toContain("business_trip");
+  });
+
+  it("gives visitor questions", () => {
+    const qs = likelyQuestions(kofiB1B2).map((q) => q.id);
+    expect(qs.every((id) => !id.startsWith("f1."))).toBe(true);
+    expect(qs).toContain("b.purpose.trip");
+  });
+});

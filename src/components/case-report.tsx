@@ -57,9 +57,8 @@ export function Checklist({ items, uploaded }: { items: ChecklistItem[]; uploade
     <div className="mt-4 space-y-6">
       {groups.map((g) => (
         <div key={g}>
-          <p className="label text-muted">
-            {g} · <span className="normal-case tracking-normal">{GROUP_NOTE[g]}</span>
-          </p>
+          <p className="label text-fg">{g}</p>
+          <p className="mt-0.5 text-xs text-muted">{GROUP_NOTE[g]}</p>
           <ul className="mt-2 divide-y divide-line">
             {items
               .filter((i) => i.group === g)

@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { reportOutcome, setInterviewDate, setPacked, startDrill, startSession } from "@/app/app/actions";
-import { Button, Card, Field, inputCls, Notice, PageTitle } from "@/components/app/ui";
-import { Countdown } from "@/components/app/countdown";
+import { Button, Card, Field, inputCls, Notice } from "@/components/app/ui";
 import { daysUntil } from "@/lib/countdown";
+import { CaseHeader } from "@/components/app/case-header";
 import { PackingList } from "@/components/app/packing-list";
 import { MODE_INFO } from "@/lib/modes";
 import { scanCase } from "@/lib/domain/case-scan";
@@ -72,37 +72,32 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
     : [];
   const interview = caseRow.interview_at ? new Date(caseRow.interview_at) : null;
   const daysToGo = caseRow.interview_at ? daysUntil(caseRow.interview_at) : null;
+  const subtitle = current?.profile.study?.school ?? current?.profile.visit?.purpose ?? null;
   const interviewPassed = interview ? hasPassed(interview) : false;
 
   return (
     <>
       <Notice code={notice} />
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <PageTitle eyebrow={caseRow.visa_type === "F1" ? "F-1 student" : "B1/B2 visitor"} title={caseRow.applicant_name} />
-        <Countdown interviewAt={caseRow.interview_at} days={daysToGo} setDate={setInterviewDate.bind(null, id)} />
-      </div>
+      <CaseHeader
+        caseId={id}
+        visaLabel={caseRow.visa_type === "F1" ? "F-1 student" : "B1/B2 visitor"}
+        subtitle={subtitle}
+        name={caseRow.applicant_name}
+        factsVersion={current?.version ?? null}
+        docCount={docs?.length ?? 0}
+        readiness={ready}
+        interviewAt={caseRow.interview_at}
+        days={daysToGo}
+        setDate={setInterviewDate.bind(null, id)}
+      />
 
-      <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
         <div className="space-y-6">
           <Card>
-            <div className="flex flex-wrap items-end justify-between gap-4">
-              <div>
-                <h2 className="font-display text-2xl uppercase">Practice</h2>
-                <p className="mt-1 text-sm text-muted">{ent.reason}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs uppercase tracking-wider text-muted">Readiness</p>
-                <p className="font-display text-4xl tabular">{Math.round(ready.score * 100)}%</p>
-              </div>
+            <div className="flex flex-wrap items-baseline justify-between gap-3">
+              <h2 className="font-display text-2xl uppercase">Practice</h2>
+              <span className="label text-muted">{ent.reason}</span>
             </div>
-            <div className="mt-3 h-2 overflow-hidden rounded-[3px] bg-fg/10">
-              <div className="h-full rounded-[3px] bg-stamp" style={{ width: `${Math.round(ready.score * 100)}%` }} />
-            </div>
-            <p className="mt-2 text-xs text-muted">
-              {ready.total
-                ? `${ready.answeredWell} of ${ready.total} topics answered well${ready.answeredWell ? `, ${ready.confirmed} confirmed by a second officer` : ""}. A topic counts half after one good answer and fully once a different officer agrees; a weak answer resets it. Key topics count double.`
-                : "Confirm your facts to see which topics your officer will test."}
-            </p>
             {!current ? (
               <p className="mt-6 text-sm">
                 First, <Link className="underline" href={`/app/cases/${id}/profile`}>confirm your facts</Link>. The officer only uses what you confirm.
@@ -221,21 +216,6 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
         </div>
 
         <div className="space-y-6">
-          <Card>
-            <h2 className="font-display text-2xl uppercase">Your facts</h2>
-            <p className="mt-1 text-sm text-muted">
-              {current ? `Confirmed, version ${current.version}.` : "Not confirmed yet."} {docs?.length ?? 0} document(s) uploaded.
-            </p>
-            <div className="mt-4 flex flex-wrap gap-3">
-              <Link href={`/app/cases/${id}/documents`} className="rounded-[3px] border border-line px-4 py-2 text-sm hover:border-fg/40">
-                Documents
-              </Link>
-              <Link href={`/app/cases/${id}/profile`} className="rounded-[3px] border border-line px-4 py-2 text-sm hover:border-fg/40">
-                {current ? "Review facts" : "Confirm facts"}
-              </Link>
-            </div>
-          </Card>
-
           {current && (
             <Card>
               <h2 className="font-display text-2xl uppercase">What to bring</h2>

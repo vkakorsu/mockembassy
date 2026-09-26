@@ -75,6 +75,23 @@ export function whatToBring(c: CaseProfile): ChecklistItem[] {
       });
     }
     items.push({ id: "itinerary", label: "A rough travel plan (dates, where you'll stay)", why: "Don't buy tickets before the visa.", group: "Good to have" });
+    if (/business|conference|meeting|training|workshop|trade|summit|client|partner/i.test(c.visit?.purpose ?? "")) {
+      items.push({
+        id: "business_trip",
+        label: "Letter from your employer or the inviting company about the trip, and any conference registration",
+        why: "Says who you're meeting, why, and who pays. You won't be paid in the US.",
+        group: "Likely to be asked for",
+        docKind: "invitation_letter",
+      });
+    }
+    if (!c.ties.employer && !c.ties.ownsBusiness) {
+      items.push({
+        id: "income",
+        label: "Proof of your own income: pension statement, rent received, or farm or trading records",
+        why: "Without a job, the officer looks for what supports your life in Ghana.",
+        group: "Likely to be asked for",
+      });
+    }
   }
 
   const sponsor = c.funding.sponsors[0];
