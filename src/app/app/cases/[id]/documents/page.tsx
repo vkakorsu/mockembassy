@@ -17,7 +17,7 @@ export default async function Documents(props: PageProps<"/app/cases/[id]/docume
   if (!caseRow) notFound();
   const { data: docs } = await supabase
     .from("documents")
-    .select("id, kind, extraction_status, extraction_error, created_at, delete_after")
+    .select("id, kind, extraction, extraction_status, extraction_error, created_at, delete_after")
     .eq("case_id", id)
     .order("created_at", { ascending: false });
 
@@ -52,6 +52,16 @@ export default async function Documents(props: PageProps<"/app/cases/[id]/docume
                       {STATUS[d.extraction_status]}
                       {d.extraction_error ? `: ${d.extraction_error}` : ""} · deleted {new Date(d.delete_after).toLocaleDateString()}
                     </span>
+                    {(() => {
+                      const x = d.extraction as { legibility?: string; unreadable?: string } | null;
+                      if (!x?.legibility || x.legibility === "clear") return null;
+                      return (
+                        <span className="mt-1 block text-xs text-refused">
+                          {x.legibility === "unreadable" ? "We couldn't read this." : "Parts were hard to read"}
+                          {x.unreadable ? `: ${x.unreadable}` : "."} Retake it flat, in good light, without glare, then delete this one.
+                        </span>
+                      );
+                    })()}
                   </span>
                   <span className="flex shrink-0 gap-2">
                     {d.extraction_status !== "pending" && (

@@ -60,8 +60,8 @@ const BLOCKING_TOOLS = new Set(["end_interview", "request_document"]);
 const VOICE_LEVEL = 0.02;
 /** How long after the applicant stops talking before a silent officer is prompted. */
 const NO_REPLY_MS = 3500;
-/** How long after "Passport, please" before assuming the documents were passed silently. */
-const HANDOVER_MS = 3000;
+/** How long after "Passport, please" before assuming the documents were passed. */
+const HANDOVER_MS = 8000;
 
 export function LiveRoom(props: Props) {
   const router = useRouter();
@@ -70,6 +70,10 @@ export function LiveRoom(props: Props) {
   const [elapsed, setElapsed] = useState(0);
   const [officerLevel, setOfficerLevel] = useState(0);
   const [micLevel, setMicLevel] = useState(0);
+  /** A document the officer is waiting for: shown as a button, like passing it through the slot. */
+  const [handover, setHandover] = useState<{ label: string; canDecline: boolean } | null>(null);
+  const handoverRef = useRef<((given: boolean) => void) | null>(null);
+  const openingOfferedRef = useRef(false);
   const [status, setStatus] = useState("");
 
   const sessionRef = useRef<Session | null>(null);
@@ -169,6 +173,35 @@ export function LiveRoom(props: Props) {
     sessionRef.current?.sendClientContent({ turns: [{ role: "user", parts: [{ text: `[REFEREE] ${text}` }] }], turnComplete: true });
   }
 
+  /** Shows the handover button; resolves when it's pressed, the applicant speaks, or after a timeout. */
+  function askHandover(label: string, canDecline: boolean, timeoutMs: number): Promise<boolean> {
+    handoverRef.current?.(true);
+    setHandover({ label, canDecline });
+    return new Promise((resolve) => {
+      const timer = window.setTimeout(() => done(true), timeoutMs);
+      function done(given: boolean) {
+        window.clearTimeout(timer);
+        if (handoverRef.current === done) handoverRef.current = null;
+        setHandover(null);
+        resolve(given);
+      }
+      handoverRef.current = done;
+    });
+  }
+
+  function offerOpeningHandover(officerLine: string) {
+    if (openingOfferedRef.current) return;
+    openingOfferedRef.current = true;
+    const label = /I-?20/i.test(officerLine) ? "passport and I-20" : /DS-?2019/i.test(officerLine) ? "passport and DS-2019" : "passport";
+    // Speaking ("Here you go") also counts: the voice handler resolves it and the officer hears you.
+    void askHandover(label, false, HANDOVER_MS).then((pressed) => {
+      if (pressed && lastVoiceAtRef.current <= lastOfficerAtRef.current) {
+        nudgedRef.current = true;
+        referee(`The applicant has passed the ${label} through the slot. Begin your questions.`);
+      }
+    });
+  }
+
   async function relay(call: { name?: string; args?: Record<string, unknown> }) {
     const res = await fetch(`/api/sessions/${props.sessionId}/events`, {
       method: "POST",
@@ -207,6 +240,24 @@ export function LiveRoom(props: Props) {
         continue;
       }
       try {
+        if (call.name === "request_document") {
+          const label = String(call.args?.document ?? "document");
+          const given = await askHandover(label, true, 12_000);
+          if (!given) {
+            void relay({ name: "log_document", args: { document: label, provided: false } });
+            sessionRef.current?.sendToolResponse({
+              functionResponses: [
+                {
+                  id: call.id,
+                  name: call.name,
+                  response: { available: false, applicant_says: "I don't have it with me." },
+                  scheduling: FunctionResponseScheduling.WHEN_IDLE,
+                },
+              ],
+            });
+            continue;
+          }
+        }
         const result = await relay(call);
         if (call.name === "end_interview") decidedRef.current = true;
         sessionRef.current?.sendToolResponse({
@@ -231,6 +282,9 @@ export function LiveRoom(props: Props) {
   function onMessage(msg: LiveServerMessage) {
     const sc = msg.serverContent;
     if (sc?.interrupted) stopPlayback();
+    if (sc?.turnComplete && officerTurnRef.current === 1 && lastVoiceAtRef.current <= lastOfficerAtRef.current) {
+      offerOpeningHandover(turnsRef.current[0]?.officer ?? "");
+    }
     if (sc?.turnComplete || sc?.interrupted) officerSpeakingRef.current = false;
     for (const part of sc?.modelTurn?.parts ?? []) {
       if (part.inlineData?.data) playPcm(part.inlineData.data);
@@ -346,6 +400,7 @@ export function LiveRoom(props: Props) {
           }
           lastVoiceAtRef.current = t;
           nudgedRef.current = false;
+          if (handoverRef.current && officerTurnRef.current === 1) handoverRef.current(false);
           if (startRef.current) {
             const turn = currentTurn();
             if (turn.startedMs === null) turn.startedMs = t - startRef.current;
@@ -370,9 +425,6 @@ export function LiveRoom(props: Props) {
           if (voice > officer && t - voice > NO_REPLY_MS) {
             nudgedRef.current = true;
             referee("The applicant has finished answering. Ask your next question now, or call end_interview if you have heard enough.");
-          } else if (voice < officer && officerTurnRef.current === 1 && t - officer > HANDOVER_MS) {
-            nudgedRef.current = true;
-            referee("The applicant has passed the documents through the slot without speaking. Begin your questions.");
           }
         }
         // An impatient officer cuts in on a long answer.
@@ -449,6 +501,26 @@ export function LiveRoom(props: Props) {
             </p>
           </div>
 
+          {phase === "live" && handover && (
+            <div className="relative mx-5 mb-4 flex flex-wrap items-center justify-between gap-3 border border-ink bg-paper px-4 py-3 sm:mx-8">
+              <span className="text-sm">
+                The officer is waiting for your <strong>{handover.label}</strong>.
+              </span>
+              <span className="flex gap-2">
+                <button
+                  onClick={() => handoverRef.current?.(true)}
+                  className="rounded-[3px] bg-ink px-4 py-2 text-sm font-semibold text-on-ink hover:bg-stamp"
+                >
+                  Pass it through the slot ▸
+                </button>
+                {handover.canDecline && (
+                  <button onClick={() => handoverRef.current?.(false)} className="text-sm underline underline-offset-4">
+                    I don&rsquo;t have it
+                  </button>
+                )}
+              </span>
+            </div>
+          )}
           <div className="perforated" />
           <div className="relative flex flex-wrap items-center justify-between gap-4 px-5 py-4 sm:px-8">
             {phase === "ready" || phase === "error" ? (

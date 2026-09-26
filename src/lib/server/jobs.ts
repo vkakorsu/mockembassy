@@ -29,7 +29,7 @@ export async function runExtraction(documentId: string) {
       transcribeDocument(input).catch(() => null),
     ]);
     // Never persist raw passport numbers; only the last four digits live on the case.
-    const { appointment, documentLooksLike, notes, ...profileFacts } = facts;
+    const { appointment, documentLooksLike, notes, legibility, unreadable, ...profileFacts } = facts;
 
     // Statement amounts come as printed (usually cedis); convert for the USD fields.
     let fx: { amount: number; currency: string; usd: number; rate: number } | undefined;
@@ -93,7 +93,7 @@ export async function runExtraction(documentId: string) {
     await db
       .from("documents")
       .update({
-        extraction: { documentLooksLike, facts: profileFacts },
+        extraction: { documentLooksLike, facts: profileFacts, legibility, unreadable },
         full_text: fullText ? redactIdentifiers(fullText).slice(0, 60_000) : null,
         extraction_status: "done",
         extraction_error: null,

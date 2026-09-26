@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { registerDocument } from "@/app/app/actions";
+import { photosToPdf } from "@/lib/client/scan-to-pdf";
 import { createClient } from "@/lib/supabase/browser";
 import { Button, Field, inputCls } from "./ui";
 
@@ -30,14 +31,27 @@ export function DocumentUploader(props: { caseId: string; userId: string; visaTy
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
-    const file = form.get("file") as File | null;
+    const files = (form.getAll("file") as File[]).filter((f) => f.size > 0);
     const kind = String(form.get("kind"));
-    if (!file || file.size === 0) return;
-    if (file.size > 10 * 1024 * 1024) return setError("Files must be under 10 MB.");
+    if (!files.length) return;
+    const pdfs = files.filter((f) => f.type === "application/pdf");
+    if (pdfs.length && files.length > 1) return setError("Upload one PDF, or several photos of the pages, not both.");
     setBusy(true);
     setError(null);
     try {
-      const ext = (file.name.split(".").pop() ?? "bin").toLowerCase().replace(/[^a-z0-9]/g, "");
+      let file: Blob & { name?: string } = files[0];
+      if (!pdfs.length) {
+        // Photos of the pages become one PDF, so the document is read as a whole.
+        try {
+          file = new File([await photosToPdf(files)], "scan.pdf", { type: "application/pdf" });
+        } catch {
+          // e.g. HEIC on a browser that can't decode it: a single photo can still go as it is.
+          if (files.length > 1) throw new Error("We couldn't process these photos. Try JPEG photos, or a PDF scan.");
+        }
+      }
+      if (file.size > 10 * 1024 * 1024) throw new Error("That's over 10 MB. Try fewer pages per upload, or a smaller scan.");
+      const name = file instanceof File ? file.name : "scan.pdf";
+      const ext = (name.split(".").pop() ?? "bin").toLowerCase().replace(/[^a-z0-9]/g, "");
       const path = `${props.userId}/${props.caseId}/${crypto.randomUUID()}.${ext}`;
       const supabase = createClient(props.supabaseUrl, props.publishableKey);
       const { error: upErr } = await supabase.storage.from("documents").upload(path, file, { contentType: file.type });
@@ -63,8 +77,11 @@ export function DocumentUploader(props: { caseId: string; userId: string; visaTy
           ))}
         </select>
       </Field>
-      <Field label="File" hint="PDF or photo, up to 10 MB. Raw files are deleted after 30 days.">
-        <input name="file" type="file" required accept="application/pdf,image/jpeg,image/png,image/webp,image/heic" className={inputCls} />
+      <Field
+        label="File"
+        hint="A PDF, or photos of each page (select them all at once). Lay the page flat in good light, no glare, all four corners in view. Files are deleted after 30 days."
+      >
+        <input name="file" type="file" multiple required accept="application/pdf,image/jpeg,image/png,image/webp,image/heic" className={inputCls} />
       </Field>
       <Button disabled={busy}>{busy ? "Uploading…" : "Upload and read"}</Button>
       {error && <p role="alert" className="text-sm text-refused">{error}</p>}

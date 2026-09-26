@@ -69,3 +69,11 @@ The Director turns one kept note into a question in most sessions (never the ope
 ### Reply delay (second live run)
 
 The officer took ~6 s to answer. It usually ends its turn with only `log_probe`; the browser waited for our server before replying to that call, then told the model to stay silent, so only the 4.5 s watchdog got it talking. Bookkeeping calls are now answered in the browser at once (server relay in the background) with `WHEN_IDLE` when the officer hasn't spoken since the answer, which makes it continue immediately. End-of-turn silence is now 0.5–1.1 s. Each turn records `reply_latency_ms` (end of answer → officer's next audio); the admin quality page shows the median and 90th percentile. Answer timing and cut-ins now come from the mic, not the transcript, which arrives after the answer ends.
+
+### Scans and phone photos
+
+Gemini reads scanned PDFs and photos directly (no separate OCR step). The browser turns photos of several pages into one PDF (rotation fixed, long edge ≤ 2000 px, JPEG): two 23 MB photos became a 3.8 MB PDF in testing. Extraction reports `legibility` (clear / partly unreadable / unreadable) and what couldn't be read, never fills a field from unreadable text, and the documents page asks for a retake.
+
+### Handing documents over
+
+A real applicant passes the passport (and I-20) through the slot. When the officer asks, the window shows **Pass it through the slot**. Pressing it, or saying "here you go", counts; after 8 s it's assumed. Mid-interview requests (`request_document`) wait for the button; **I don't have it** is logged as a missing document, which can lead to a 221(g), as it would at the embassy. A document the applicant has but didn't upload is treated as handed over and unremarkable.

@@ -11,6 +11,10 @@ const Money = z.object({ amount: z.number(), currency: z.string().max(8) });
  */
 export const ExtractedFacts = z.object({
   documentLooksLike: z.string().max(80).optional(),
+  /** How well the scan or photo could be read. */
+  legibility: z.enum(["clear", "partly_unreadable", "unreadable"]).optional(),
+  /** What couldn't be read, in plain words ("the balance column on page 2 is blurred"). */
+  unreadable: z.string().max(200).optional(),
   visaType: VisaType.optional(),
   applicant: z
     .object({
