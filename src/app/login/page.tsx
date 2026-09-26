@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export default async function Login(props: PageProps<"/login">) {
   if (!features.supabase) redirect("/setup");
-  const { next } = await props.searchParams;
+  const { next, notice } = await props.searchParams;
   const safeNext = typeof next === "string" && /^\/(app|admin)(\/|$)/.test(next) ? next : "/app";
   return (
     <AuthShell
@@ -21,6 +21,12 @@ export default async function Login(props: PageProps<"/login">) {
         </Link>
       }
     >
+      {notice === "link-used" && (
+        <p role="status" className="mt-5 border-l-2 border-stamp pl-3 text-sm leading-relaxed">
+          Your email is confirmed. Sign in with your password to continue. (Links only sign you in on the browser where
+          you created the account.)
+        </p>
+      )}
       <SignInForm url={env.supabaseUrl!} publishableKey={env.supabasePublishableKey!} next={safeNext} />
     </AuthShell>
   );
