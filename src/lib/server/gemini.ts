@@ -165,3 +165,70 @@ export async function createLiveToken(plan: SessionPlan, profile: CaseProfile) {
   });
   return { token: requireEnv(token.name, "ephemeral token"), model: env.geminiLiveModel, behaviour };
 }
+
+/* ---------------------------------------------------------------- health */
+
+export type HealthCheck = { name: string; ok: boolean; detail: string; ms: number };
+
+async function timed(name: string, fn: () => Promise<string>): Promise<HealthCheck> {
+  const t = Date.now();
+  try {
+    return { name, ok: true, detail: await fn(), ms: Date.now() - t };
+  } catch (e) {
+    return { name, ok: false, detail: e instanceof Error ? e.message.slice(0, 400) : String(e), ms: Date.now() - t };
+  }
+}
+
+/**
+ * Real calls against the configured key: which models the key can see, a tiny
+ * structured Flash call, and a Live token with the officer config locked in.
+ * Nothing secret is returned.
+ */
+export async function geminiHealth(): Promise<{ checks: HealthCheck[]; liveModels: string[]; flashModels: string[] }> {
+  const liveModels: string[] = [];
+  const flashModels: string[] = [];
+  const checks: HealthCheck[] = [];
+
+  checks.push(
+    await timed("List models", async () => {
+      const pager = await genai().models.list({ config: { pageSize: 200 } });
+      for await (const m of pager) {
+        const id = (m.name ?? "").replace(/^models\//, "");
+        const actions = m.supportedActions ?? [];
+        if (actions.includes("bidiGenerateContent")) liveModels.push(id);
+        else if (actions.includes("generateContent") && /flash/.test(id)) flashModels.push(id);
+      }
+      const want = [env.geminiLiveModel, env.geminiFlashModel];
+      const missing = want.filter((w) => !liveModels.includes(w) && !flashModels.includes(w));
+      if (missing.length) throw new Error(`Not visible to this key: ${missing.join(", ")}`);
+      return `${liveModels.length} Live models, ${flashModels.length} Flash models`;
+    }),
+  );
+
+  checks.push(
+    await timed(`Flash structured JSON (${env.geminiFlashModel})`, async () => {
+      const res = await genai().models.generateContent({
+        model: env.geminiFlashModel,
+        contents: "Reply with ok=true.",
+        config: {
+          responseMimeType: "application/json",
+          responseJsonSchema: jsonSchema(z.object({ ok: z.boolean() })),
+          temperature: 0,
+        },
+      });
+      return `replied ${res.text?.slice(0, 60)}`;
+    }),
+  );
+
+  checks.push(
+    await timed(`Live token (${env.geminiLiveModel})`, async () => {
+      const { amaF1 } = await import("@/lib/domain/fixtures");
+      const { planSession } = await import("@/lib/domain/director");
+      const plan = planSession({ profile: amaF1, pastSessions: [], readiness: 0.4, mode: "real", seed: "health" });
+      const { token } = await createLiveToken(plan, amaF1);
+      return `created (${token.slice(0, 12)}…)`;
+    }),
+  );
+
+  return { checks, liveModels: liveModels.sort(), flashModels: flashModels.sort() };
+}

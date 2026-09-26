@@ -13,6 +13,7 @@ const nav = [
   { href: "/admin/quality", label: "Session quality" },
   { href: "/admin/outcomes", label: "Real outcomes" },
   { href: "/admin/audit", label: "Audit log" },
+  { href: "/admin/health", label: "Health" },
 ];
 
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
