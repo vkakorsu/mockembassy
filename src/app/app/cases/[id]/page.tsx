@@ -39,7 +39,14 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
     latestProfile(supabase, id),
     pastSessions(supabase, id),
     caseEntitlement(supabase, caseRow),
-    supabase.from("sessions").select("id, mode, outcome, is_free, created_at, ended_at, plan").eq("case_id", id).order("created_at", { ascending: false }).limit(20),
+    // Sessions that never started (a mode clicked, then left) aren't shown or counted.
+    supabase
+      .from("sessions")
+      .select("id, mode, outcome, is_free, created_at, started_at, ended_at, plan")
+      .eq("case_id", id)
+      .not("started_at", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(20),
     supabase.from("passes").select("*").eq("case_id", id).is("refunded_at", null),
     supabase.from("documents").select("kind").eq("case_id", id),
   ]);
@@ -204,9 +211,13 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
                       </span>
                       <span className="flex items-center gap-3">
                         {o && <span className={`rounded-[3px] px-2 py-0.5 text-xs ${o.cls}`}>{o.label}</span>}
-                        <Link className="underline-offset-4 hover:underline" href={s.ended_at ? `/app/sessions/${s.id}/debrief` : `/app/sessions/${s.id}`}>
-                          {s.ended_at ? "Debrief" : "Resume"}
-                        </Link>
+                        {s.ended_at ? (
+                          <Link className="underline-offset-4 hover:underline" href={`/app/sessions/${s.id}/debrief`}>
+                            Debrief
+                          </Link>
+                        ) : (
+                          <span className="text-muted">Unfinished</span>
+                        )}
                       </span>
                     </li>
                   );

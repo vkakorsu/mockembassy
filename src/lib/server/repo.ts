@@ -61,14 +61,16 @@ export async function pastSessions(db: SupabaseClient, caseId: string, limit = 1
 export async function caseEntitlement(db: SupabaseClient, caseRow: CaseRow, now = new Date()): Promise<Entitlement> {
   const [{ data: passes }, { data: sessions }] = await Promise.all([
     db.from("passes").select("*").eq("case_id", caseRow.id),
-    // Drills don't count towards mock limits (drillEntitlement).
-    db.from("sessions").select("created_at, is_free").eq("case_id", caseRow.id).neq("mode", "drill"),
+    // Only sessions that actually started count (clicking a mode and leaving
+    // costs nothing). Drills don't count towards mock limits (drillEntitlement).
+    db.from("sessions").select("started_at, is_free").eq("case_id", caseRow.id).neq("mode", "drill").not("started_at", "is", null),
   ]);
   const { count: freeUsedOnAccount } = await db
     .from("sessions")
     .select("id, cases!inner(user_id)", { count: "exact", head: true })
     .eq("is_free", true)
     .neq("mode", "drill")
+    .not("started_at", "is", null)
     .eq("cases.user_id", caseRow.user_id);
   const interview = caseRow.interview_at ? new Date(caseRow.interview_at) : now;
   const rows: PassRow[] = (passes ?? []).map((p) => ({
@@ -80,7 +82,7 @@ export async function caseEntitlement(db: SupabaseClient, caseRow: CaseRow, now 
     dateMoves: p.date_moves,
     refunded: Boolean(p.refunded_at),
   }));
-  const full = (sessions ?? []).filter((s) => !s.is_free).map((s) => new Date(s.created_at));
+  const full = (sessions ?? []).filter((s) => !s.is_free).map((s) => new Date(s.started_at));
   const startOfDay = new Date(now);
   startOfDay.setUTCHours(0, 0, 0, 0);
   return entitlement({
@@ -108,13 +110,32 @@ export async function caseDrillEntitlement(db: SupabaseClient, caseRow: CaseRow,
       .select("id, cases!inner(user_id)", { count: "exact", head: true })
       .eq("mode", "drill")
       .eq("cases.user_id", caseRow.user_id)
-      .gte("created_at", startOfDay.toISOString()),
+      .gte("started_at", startOfDay.toISOString()),
     db
       .from("sessions")
       .select("id, cases!inner(user_id)", { count: "exact", head: true })
       .eq("mode", "drill")
       .eq("is_free", true)
+      .not("started_at", "is", null)
       .eq("cases.user_id", caseRow.user_id),
   ]);
   return drillEntitlement({ mock, drillsToday: drillsToday ?? 0, freeDrillsUsed: freeDrillsUsed ?? 0 });
+}
+
+/**
+ * Checked again when a session actually starts (allowances count started
+ * sessions only, so creating several and starting them later can't beat them).
+ */
+export async function canStartSession(
+  db: SupabaseClient,
+  session: { case_id: string; is_free: boolean; plan: { mode: string } },
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const { data: caseRow } = await db.from("cases").select("*").eq("id", session.case_id).single();
+  if (!caseRow) return { ok: false, reason: "Case not found" };
+  const ent =
+    session.plan.mode === "drill" ? await caseDrillEntitlement(db, caseRow as CaseRow) : await caseEntitlement(db, caseRow as CaseRow);
+  if (ent.kind === "none") return { ok: false, reason: ent.reason };
+  // A free session needs the free allowance; a paid one needs the pass.
+  if (session.is_free !== (ent.kind === "free")) return { ok: false, reason: "Your allowance changed. Go back and start again." };
+  return { ok: true };
 }

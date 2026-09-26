@@ -9,6 +9,7 @@ export default async function Dashboard(props: PageProps<"/app">) {
   const { data: cases } = await supabase
     .from("cases")
     .select("id, visa_type, applicant_name, interview_at, sessions(count)")
+    .not("sessions.started_at", "is", null) // count only sessions that started
     .order("created_at", { ascending: false });
 
   return (

@@ -2,6 +2,7 @@ import { CaseProfile } from "@/lib/domain/case";
 import { features } from "@/lib/env";
 import { clientFingerprint } from "@/lib/server/client-fingerprint";
 import { createLiveToken } from "@/lib/server/gemini";
+import { canStartSession } from "@/lib/server/repo";
 import { errorResponse, HttpError, ownedSession } from "@/lib/server/session-access";
 
 /** Mints a single-use Gemini Live token with the officer's config locked server-side. */
@@ -26,6 +27,11 @@ export async function POST(req: Request, ctx: RouteContext<"/api/sessions/[id]/t
       .gte("started_at", new Date(Date.now() - 8 * 60_000).toISOString())
       .limit(1);
     if (open?.length) throw new HttpError(409, "You already have an interview open on another tab or device. Finish it first.");
+
+    if (!session.started_at) {
+      const allowed = await canStartSession(admin, session);
+      if (!allowed.ok) throw new HttpError(402, allowed.reason);
+    }
 
     const { data: prof } = await admin
       .from("case_profiles")

@@ -29,5 +29,11 @@ export async function GET(req: Request) {
     deleted += expired.length;
     if (expired.length < 100) break;
   }
-  return Response.json({ deleted });
+  // Sessions created by clicking a mode but never started.
+  const { count: unstarted } = await db
+    .from("sessions")
+    .delete({ count: "exact" })
+    .is("started_at", null)
+    .lt("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+  return Response.json({ deleted, unstarted: unstarted ?? 0 });
 }

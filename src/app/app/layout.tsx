@@ -17,6 +17,9 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
             <Logo />
           </Link>
           <div className="flex items-center gap-4 text-sm text-muted">
+            <Link href="/app" className="rounded-[3px] border border-ink px-3 py-1.5 font-semibold text-fg hover:bg-ink hover:text-on-ink">
+              Home
+            </Link>
             <span className="hidden sm:inline">{user.phone ? `+${user.phone.replace(/^\+/, "")}` : user.email}</span>
             <form action="/auth/signout" method="post">
               <button className="rounded-[3px] border border-line px-3 py-1.5 hover:text-fg">Sign out</button>
