@@ -114,7 +114,7 @@ export function SignUpForm({ url, publishableKey }: Cfg) {
       <ErrorLine text={error} />
       <p className="text-sm text-muted">
         Your first mock is free. By signing up you agree that practice outcomes are not predictions and that we store your
-        confirmed case facts to run your interviews.
+        confirmed facts to run your interviews.
       </p>
     </form>
   );

@@ -127,24 +127,24 @@ export async function canStartSession(
   return { ok: true };
 }
 
-/**
- * What the account can still use, for the top bar: credits summed over the
- * user's cases (credits belong to a case, but most accounts have one), and
- * the name of the most recent pack.
- */
+/** The account's applicant. One per account; an account from before that rule uses its first. */
+export async function accountCaseId(db: SupabaseClient, userId: string): Promise<string | null> {
+  const { data } = await db.from("cases").select("id").eq("user_id", userId).order("created_at").limit(1).maybeSingle();
+  return (data?.id as string | undefined) ?? null;
+}
+
+/** What the account can still use, for the top bar: the same balance the Practice card shows. */
 export async function accountCredits(db: SupabaseClient, userId: string) {
-  const { data: cases } = await db.from("cases").select("id, passes(plan, purchased_at, refunded_at)").eq("user_id", userId);
-  const list = cases ?? [];
-  const balances = await Promise.all(list.map((c) => caseCredits(db, c.id)));
-  const packs = list
-    .flatMap((c) => (c.passes ?? []) as { plan: string; purchased_at: string; refunded_at: string | null }[])
-    .filter((p) => !p.refunded_at)
-    .sort((a, b) => b.purchased_at.localeCompare(a.purchased_at));
+  const caseId = await accountCaseId(db, userId);
+  if (!caseId) return { plan: null, interviews: 0, drills: 0, buyHref: "/app" };
+  const [balance, { data: passes }] = await Promise.all([
+    caseCredits(db, caseId),
+    db.from("passes").select("plan").eq("case_id", caseId).is("refunded_at", null).order("purchased_at", { ascending: false }).limit(1),
+  ]);
   return {
-    plan: packs[0]?.plan ?? null,
-    interviews: balances.reduce((n, b) => n + b.interviews, 0),
-    drills: balances.reduce((n, b) => n + b.drills, 0),
-    /** Where "Get more" goes: the only case's buy page, or the case list. */
-    buyHref: list.length === 1 ? `/app/cases/${list[0].id}/pass` : "/app",
+    plan: (passes?.[0]?.plan as string | undefined) ?? null,
+    interviews: balance.interviews,
+    drills: balance.drills,
+    buyHref: `/app/cases/${caseId}/pass`,
   };
 }

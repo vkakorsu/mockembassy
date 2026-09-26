@@ -37,7 +37,7 @@ export async function createCase(formData: FormData) {
   const { user, supabase } = await requireUser();
   const input = NewCase.parse(Object.fromEntries(formData));
   const { count } = await supabase.from("cases").select("id", { count: "exact", head: true });
-  if ((count ?? 0) >= MAX_CASES_PER_ACCOUNT) redirect("/app?notice=case-limit");
+  if ((count ?? 0) >= MAX_CASES_PER_ACCOUNT) redirect("/app");
   const { data, error } = await supabase
     .from("cases")
     .insert({
@@ -49,6 +49,8 @@ export async function createCase(formData: FormData) {
     })
     .select("id")
     .single();
+  // A double submit hits the one-per-account index: the first one won.
+  if (error?.code === "23505") redirect("/app");
   if (error) throw error;
   redirect(`/app/cases/${data.id}`);
 }
@@ -230,7 +232,7 @@ export async function confirmProfile(caseId: string, _prev: ConfirmState, f: For
     const check = sameApplicant(current.profile, parsed.data);
     if (!check.ok) {
       return {
-        error: `The ${check.field} can't change: this case and its pass belong to one applicant. If something was entered wrongly, contact support. For a different person, create a new case.`,
+        error: `The ${check.field} can't change: this account and its credits belong to one applicant. If something was entered wrongly, contact support. Someone else practising needs their own account.`,
       };
     }
   }

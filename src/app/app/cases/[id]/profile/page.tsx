@@ -61,7 +61,7 @@ export default async function ProfilePage(props: PageProps<"/app/cases/[id]/prof
             )}
           </div>
           <p className="mt-1 text-sm text-muted">
-            Details only your case has. Keep the ones that are true: the officer may ask about them, and your coaching uses them.
+            Details only you have. Keep the ones that are true: the officer may ask about them, and your coaching uses them.
             Notes from your DS-160, I-20 or passport are on the officer&rsquo;s screen; the rest stay in your folder until the officer asks
             to see that document.
           </p>

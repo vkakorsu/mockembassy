@@ -1,13 +1,14 @@
 import type { CaseProfile } from "./case";
 
 /**
- * A pass belongs to one applicant (docs/PRICING.md §3a). Once the case
- * identity is locked (after the first full mock), re-confirmed facts must
- * still describe the same person, so a pass can't be handed to a friend by
- * overwriting the case with their details.
+ * An account belongs to one applicant (docs/PRICING.md). Once the identity is
+ * locked (after the first paid interview), re-confirmed facts must still
+ * describe the same person, so credits can't be handed to a friend by
+ * overwriting the facts with theirs.
  */
 
-export const MAX_CASES_PER_ACCOUNT = 5;
+/** One account is one applicant; someone else practising makes their own account. */
+export const MAX_CASES_PER_ACCOUNT = 1;
 export const FREE_MOCKS_PER_ACCOUNT = 1;
 
 export type IdentityCheck = { ok: true } | { ok: false; field: string };

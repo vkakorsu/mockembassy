@@ -15,7 +15,7 @@ export function TopBar({ credits }: { credits: TopBarCredits }) {
   return (
     <header className="sticky top-0 z-30 border-b border-ink bg-paper/95 backdrop-blur supports-[backdrop-filter]:bg-paper/85">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
-        <Link href="/app" aria-label="Your cases" className="shrink-0">
+        <Link href="/app" aria-label="Home" className="shrink-0">
           <Logo />
         </Link>
         <div className="flex items-center gap-2 text-sm">

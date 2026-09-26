@@ -63,7 +63,7 @@ export function nextStep(i: NextStepInput): NextStep {
       return step(
         "documents",
         "Upload your documents",
-        "Your DS-160, I-20 or invitation, and bank statements. The officer uses what's in them, so your questions are about your case, not anyone's.",
+        "Your DS-160, I-20 or invitation, and bank statements. The officer uses what's in them, so the questions are about you, not anyone else.",
         { kind: "link", href: `/app/cases/${i.caseId}/documents`, label: "Upload documents" },
       );
     }
@@ -81,7 +81,7 @@ export function nextStep(i: NextStepInput): NextStep {
     });
   }
   if (i.pendingNotes > 0 && !progress.firstInterview) {
-    return step("notes", `Keep or remove ${i.pendingNotes} note${i.pendingNotes === 1 ? "" : "s"} from your documents`, "Details only your case has. The officer asks about the ones you keep.", {
+    return step("notes", `Keep or remove ${i.pendingNotes} note${i.pendingNotes === 1 ? "" : "s"} from your documents`, "Details only you have. The officer asks about the ones you keep.", {
       kind: "link",
       href: `/app/cases/${i.caseId}/profile#notes`,
       label: "Review notes",

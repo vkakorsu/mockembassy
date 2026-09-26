@@ -17,7 +17,7 @@ const subscribe = (onChange: () => void) => {
   return () => window.removeEventListener("storage", onChange);
 };
 
-/** New case; if the person did the free Case Scan in this browser, their answers come along as a draft. */
+/** Setting up the account's applicant; if they did the free Case Scan in this browser, their answers come along as a draft. */
 export function NewCaseForm() {
   const raw = useSyncExternalStore(subscribe, readScan, () => null);
   let scan: { draft?: { visaType?: "F1" | "B1B2" } } | null = null;
@@ -33,7 +33,7 @@ export function NewCaseForm() {
           localStorage.removeItem(SCAN_STORAGE_KEY);
         } catch {}
       }}
-      className="mt-5 grid gap-4"
+      className="grid gap-4"
     >
       {scan?.draft && (
         <>
@@ -43,7 +43,7 @@ export function NewCaseForm() {
           </p>
         </>
       )}
-      <Field label="Applicant's name" hint="As on the passport.">
+      <Field label="Your full name" hint="As on your passport. It can't be changed to someone else's later.">
         <input name="applicantName" required maxLength={80} className={inputCls} />
       </Field>
       <Field label="Visa">
@@ -55,7 +55,7 @@ export function NewCaseForm() {
       <Field label="Interview date (if booked)">
         <input name="interviewDate" type="date" className={inputCls} />
       </Field>
-      <Button type="submit">Create case</Button>
+      <Button type="submit">Continue</Button>
     </form>
   );
 }

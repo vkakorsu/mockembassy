@@ -106,7 +106,7 @@ export default async function DebriefPage(props: PageProps<"/app/sessions/[id]/d
   return (
     <>
       {grading && <AutoRefresh />}
-      <BackLink href={`/app/cases/${s.case_id}`}>Back to your case</BackLink>
+      <BackLink href={`/app/cases/${s.case_id}`}>Back to your prep page</BackLink>
       {notice === "regrade-limit" && (
         <p role="status" className="mb-6 text-sm text-refused">You&rsquo;ve reached the re-grade limit for this session.</p>
       )}

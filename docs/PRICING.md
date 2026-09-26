@@ -50,8 +50,8 @@ All prices include **20% VAT** and can be paid with MTN MoMo, Telecel Cash, Airt
 ### 3a. Abuse, now that there's no date
 
 - **Fake dates:** nothing to gain. The date doesn't unlock anything.
-- **Account sharing:** credits belong to one case (one applicant). Sharing a login splits the same credits; it can't create more. The case identity still locks after the first paid interview (first name, age ±1, visa type, school and program), one login is active at a time, one live interview at a time per account, and the admin quality page flags cases used from 3+ network and browser combinations.
-- **Free tier:** one free mock and 3 free drills per account (not per case), at most 5 cases per account.
+- **One account, one applicant:** the database allows one case per account (migration 16), so credits belong to the account and the person on it. Someone else practising signs up themselves. Sharing a login splits the same credits; it can't create more. The applicant's identity locks after the first paid interview (first name, age ±1, visa type, school and program), one login is active at a time, one live interview at a time per account, and the admin quality page flags accounts used from 3+ network and browser combinations.
+- **Free tier:** one free mock and 3 free drills per account.
 - **Cost of a single session** is capped by the Live token's lifetime (planned length plus 3 minutes).
 
 ---

@@ -5,7 +5,7 @@ import { accountCredits } from "@/lib/server/repo";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: { default: "Your cases", template: "%s · Okwan" }, robots: { index: false } };
+export const metadata: Metadata = { title: { default: "Your interview", template: "%s · Okwan" }, robots: { index: false } };
 
 export default async function AppLayout({ children }: LayoutProps<"/app">) {
   const { user, supabase } = await requireUser();

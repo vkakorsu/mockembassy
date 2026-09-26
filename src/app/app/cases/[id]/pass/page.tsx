@@ -27,11 +27,11 @@ export default async function PassPage(props: PageProps<"/app/cases/[id]/pass">)
         MoMo or card, VAT included.
       </PageTitle>
       <p className="mb-2 text-sm">
-        For <strong>{caseRow.applicant_name}</strong> ({caseRow.visa_type === "F1" ? "F-1 student" : "B1/B2 visitor"}). Credits
-        belong to this applicant&rsquo;s case; each applicant needs their own.
+        For <strong>{caseRow.applicant_name}</strong> ({caseRow.visa_type === "F1" ? "F-1 student" : "B1/B2 visitor"}). Credits stay
+        on this account; someone else practising needs their own.
       </p>
       <p className="mb-6 text-sm">
-        They have <strong>{credits.interviews}</strong> interview{credits.interviews === 1 ? "" : "s"} and{" "}
+        You have <strong>{credits.interviews}</strong> interview{credits.interviews === 1 ? "" : "s"} and{" "}
         <strong>{credits.drills}</strong> drill{credits.drills === 1 ? "" : "s"} left
         {credits.expiresAt ? `, the first of them to use by ${credits.expiresAt.toDateString()}` : ""}.
       </p>
