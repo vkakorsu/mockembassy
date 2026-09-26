@@ -160,7 +160,9 @@ export async function createLiveToken(plan: SessionPlan, profile: CaseProfile) {
           contextWindowCompression: { slidingWindow: {} },
         },
       },
-      lockAdditionalFields: [],
+      // No lockAdditionalFields: with liveConnectConstraints set, the whole config
+      // is locked. Passing [] makes the SDK send a field mask that 3.8 Live
+      // rejects ("field_mask is invalid for BidiGenerateContentSetup").
     },
   });
   return { token: requireEnv(token.name, "ephemeral token"), model: env.geminiLiveModel, behaviour };
