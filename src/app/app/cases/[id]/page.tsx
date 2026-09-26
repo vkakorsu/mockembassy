@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { activatePassNow, reportOutcome, setInterviewDate, startDrill, startSession } from "@/app/app/actions";
 import { Button, Card, Field, inputCls, Notice, PageTitle } from "@/components/app/ui";
 import { Checklist } from "@/components/case-report";
+import { MODE_INFO } from "@/lib/modes";
 import { scanCase } from "@/lib/domain/case-scan";
 import { whatToBring } from "@/lib/domain/checklist";
 import { probeStatus } from "@/lib/domain/director";
@@ -108,32 +109,45 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
                 First, <Link className="underline" href={`/app/cases/${id}/profile`}>confirm your facts</Link>. The officer only uses what you confirm.
               </p>
             ) : ent.kind === "none" ? (
-              <Link href={`/app/cases/${id}/pass`} className="mt-6 inline-block rounded-[3px] bg-ink px-5 py-2.5 text-sm font-semibold text-on-ink hover:bg-stamp">
-                See passes
-              </Link>
+              <>
+                <ul className="mt-6 divide-y divide-line border-y border-line">
+                  {(["real", "practice", "dress_rehearsal", "drill"] as const).map((m) => (
+                    <li key={m} className="py-3">
+                      <span className="font-semibold">{MODE_INFO[m].name}</span>
+                      <span className="label ml-2 text-muted">{MODE_INFO[m].length}</span>
+                      <span className="mt-1 block text-sm text-muted">{MODE_INFO[m].body}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Link href={`/app/cases/${id}/pass`} className="mt-6 inline-block rounded-[3px] bg-ink px-5 py-2.5 text-sm font-semibold text-on-ink hover:bg-stamp">
+                  See passes
+                </Link>
+              </>
             ) : (
-              <div className="mt-6 flex flex-wrap gap-3">
-                <form action={startSession.bind(null, id, "real")}>
-                  <Button>{ent.kind === "free" ? "Start free 90-second mock" : "Real interview"}</Button>
-                </form>
-                {ent.kind === "full" && (
-                  <>
-                    <form action={startSession.bind(null, id, "practice")}>
-                      <Button variant="ghost">Practice mode</Button>
-                    </form>
-                    <form action={startSession.bind(null, id, "dress_rehearsal")}>
-                      <Button variant="ghost">Dress rehearsal</Button>
-                    </form>
-                  </>
-                )}
-              </div>
+              <ul className="mt-6 divide-y divide-line border-y border-line">
+                {(ent.kind === "free" ? (["free"] as const) : (["real", "practice", "dress_rehearsal"] as const)).map((m, i) => {
+                  const info = MODE_INFO[m];
+                  return (
+                    <li key={m} className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 py-4">
+                      <span className="min-w-0 flex-1 basis-64">
+                        <span className="font-semibold">{info.name}</span>
+                        <span className="label ml-2 text-muted">{info.length}</span>
+                        <span className="mt-1 block text-sm text-muted">{info.body}</span>
+                      </span>
+                      <form action={startSession.bind(null, id, m === "free" ? "real" : m)}>
+                        <Button variant={i === 0 ? "primary" : "ghost"}>{m === "free" ? "Start free mock" : "Start"}</Button>
+                      </form>
+                    </li>
+                  );
+                })}
+              </ul>
             )}
           </Card>
 
           {toFix.length > 0 && (
             <Card>
               <h2 className="font-display text-2xl uppercase">Answers to fix</h2>
-              <p className="mt-1 text-sm text-muted">One question, a new officer each time, graded in seconds. Repeat until it&rsquo;s solid.</p>
+              <p className="mt-1 text-sm text-muted">Drills: one question, a new officer each time, graded straight away. Repeat until it&rsquo;s solid.</p>
               <ul className="mt-4 divide-y divide-line">
                 {toFix.map((t) => (
                   <li key={t.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
