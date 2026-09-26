@@ -97,6 +97,12 @@ export const SessionPlanSchema = z.object({
   folder: z.array(z.string()).max(20).optional(),
   /** The officer verifies fingerprints at the window before questions (a common post procedure). */
   fingerprintsAtWindow: z.boolean().optional(),
+  /**
+   * After a key contradiction (pressed once) or two weak key answers, this
+   * officer decides then and there. Most don't: they note it, carry on with
+   * their other questions, and it weighs on the verdict.
+   */
+  decidesFast: z.boolean().optional(),
 });
 
 export type SessionPlan = z.infer<typeof SessionPlanSchema>;
@@ -260,6 +266,11 @@ export function planSession(input: DirectorInput): SessionPlan {
     // The full window choreography belongs in the dress rehearsal; elsewhere it's
     // time that doesn't train answers (and Accra's exact procedure is unconfirmed).
     fingerprintsAtWindow: mode === "dress_rehearsal",
+    // Drawn last so the rest of a seeded plan doesn't change. Sceptical,
+    // impatient officers are the ones likely to stop early (about 1 in 3 overall).
+    decidesFast:
+      mode !== "practice" &&
+      rng() < Math.min(0.75, Math.max(0.1, 0.2 + 0.35 * officer.traits.scepticism + 0.25 * (1 - officer.traits.patience) - 0.1)),
   });
 }
 

@@ -74,21 +74,46 @@ describe("referee", () => {
   });
 });
 
-describe("early refusals", () => {
-  it("ends after a key contradiction or two weak key answers, except in practice", () => {
-    const plan = planSession({ profile: amaF1, pastSessions: [], readiness: 0.3, mode: "real", seed: "ref" });
-    const critical = plan.probes.filter((p) => p.critical).map((p) => p.probeId);
-    const base = createRefereeState(plan);
-    const recorded = { field: "sponsor", said: "Mariam", onFile: "Joseph Aboagye" };
-    expect(shouldEnd(recordTurn(base, { probeId: critical[0], quality: "contradiction", durationSec: 5, inconsistency: recorded }), 10)).toBe(true);
-    // A bare judgement (possibly from a misheard answer) doesn't end it on its own.
-    expect(shouldEnd(recordTurn(base, { probeId: critical[0], quality: "contradiction", durationSec: 5 }), 10)).toBe(false);
-    if (critical.length >= 2) {
-      let s = base;
-      for (const id of critical.slice(0, 2)) s = recordTurn(s, { probeId: id, quality: "weak", durationSec: 5 });
-      expect(shouldEnd(s, 10)).toBe(true);
-    }
-    const practice = createRefereeState({ ...plan, mode: "practice" });
-    expect(shouldEnd(recordTurn(practice, { probeId: critical[0], quality: "contradiction", durationSec: 5, inconsistency: recorded }), 10)).toBe(false);
+describe("early decisions", () => {
+  const plan = planSession({ profile: amaF1, pastSessions: [], readiness: 0.3, mode: "real", seed: "ref" });
+  const critical = plan.probes.filter((p) => p.critical).map((p) => p.probeId);
+  const recorded = { field: "sponsor", said: "Mariam", onFile: "Joseph Aboagye" };
+  const contradicted = (fast: boolean, mode = plan.mode) =>
+    recordTurn(createRefereeState({ ...plan, mode, decidesFast: fast }), {
+      probeId: critical[0],
+      quality: "contradiction",
+      durationSec: 5,
+      inconsistency: recorded,
+    });
+
+  it("a fast-deciding officer stops after pressing on a recorded contradiction", () => {
+    const s = contradicted(true);
+    expect(shouldEnd(s, 10)).toBe(false); // hasn't heard the answer to the challenge yet
+    expect(shouldEnd(recordTurn(s, { probeId: critical[0], quality: "weak", durationSec: 5 }), 20)).toBe(true);
+  });
+
+  it("most officers note it and carry on, but the verdict still refuses", () => {
+    const s = recordTurn(contradicted(false), { probeId: critical[0], quality: "adequate", durationSec: 5 });
+    expect(shouldEnd(s, 20)).toBe(false);
+    expect(decide(s).outcome).toBe("refused_214b");
+  });
+
+  it("never in practice mode, and a bare judgement never counts", () => {
+    const practice = recordTurn(contradicted(true, "practice"), { probeId: critical[0], quality: "weak", durationSec: 5 });
+    expect(shouldEnd(practice, 20)).toBe(false);
+    let bare = createRefereeState({ ...plan, decidesFast: true });
+    bare = recordTurn(bare, { probeId: critical[0], quality: "contradiction", durationSec: 5 });
+    bare = recordTurn(bare, { probeId: critical[0], quality: "adequate", durationSec: 5 });
+    expect(shouldEnd(bare, 20)).toBe(false);
+  });
+
+  it("about a third of officers decide fast, and the sceptical impatient ones more often", () => {
+    const plans = Array.from({ length: 200 }, (_, i) => planSession({ profile: amaF1, pastSessions: [], readiness: 0.3, mode: "real", seed: `f${i}` }));
+    const fast = plans.filter((p) => p.decidesFast);
+    expect(fast.length).toBeGreaterThan(40);
+    expect(fast.length).toBeLessThan(110);
+    const tough = (p: (typeof plans)[number]) => p.officer.traits.scepticism - p.officer.traits.patience;
+    const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+    expect(avg(fast.map(tough))).toBeGreaterThan(avg(plans.filter((p) => !p.decidesFast).map(tough)));
   });
 });

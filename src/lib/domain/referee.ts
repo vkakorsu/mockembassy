@@ -55,13 +55,15 @@ function isCritical(state: RefereeState, probeId: string): boolean {
 
 export function shouldEnd(state: RefereeState, elapsedSec: number): boolean {
   if (elapsedSec >= state.plan.targetDurationSec) return true;
-  // Officers refuse fast: a recorded contradiction on a key topic, or two weak
-  // key answers, and they've heard enough (practice lets the applicant go on).
-  // Only an explicit log_inconsistency (what was said vs what's on file) counts:
-  // a bare "contradiction" judgement may come from a misheard transcript.
-  if (state.plan.mode !== "practice") {
+  // Some officers decide early: after a recorded contradiction on a key topic
+  // (once they've pressed on it and heard the answer), or after two weak key
+  // answers. Most note it and carry on; it still weighs on the verdict.
+  // Only an explicit log_inconsistency (said vs on file) counts: a bare
+  // "contradiction" judgement may come from a misheard transcript.
+  if (state.plan.decidesFast && state.plan.mode !== "practice") {
+    const flagged = state.turns.findIndex((t) => t.inconsistency && isCritical(state, t.probeId));
+    if (flagged >= 0 && state.turns.length > flagged + 1) return true;
     const judged = finalJudgements(state).filter((t) => isCritical(state, t.probeId));
-    if (judged.some((t) => t.inconsistency)) return true;
     if (judged.filter((t) => t.quality === "weak").length >= 2) return true;
   }
   const answered = new Set(state.turns.map((t) => t.probeId));
