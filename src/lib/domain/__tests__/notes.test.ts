@@ -73,4 +73,11 @@ describe("case notes", () => {
     expect(isDuplicateNote("Completed secondary school at Mawuli School in 2022.", "Belongs to four charitable organizations in Ghana.")).toBe(false);
     expect(isDuplicateNote("Program runs from 2025 to 2030.", "Visited the UK in 2025.")).toBe(false);
   });
+
+  it("doesn't reveal a folder document's contents before it's handed over", () => {
+    for (const seed of ["a", "b", "c", "d", "e", "f"]) {
+      const plan = planSession({ profile: amaF1, pastSessions: [], readiness: 0.4, mode: "real", seed, notes: [notes[0]], folder: ["bank_statement"] });
+      expect(buildOfficerInstruction(plan, amaF1)).not.toContain("GH₵270,000");
+    }
+  });
 });

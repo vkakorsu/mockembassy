@@ -6,6 +6,7 @@ import { dedupeConflicts, mergeDraft, type DraftConflict } from "@/lib/domain/dr
 import { mergeGrades } from "@/lib/domain/grade-merge";
 import { validateRewrite } from "@/lib/domain/rewrite-validator";
 import { isDuplicateNote, redactIdentifiers, toUsd } from "@/lib/domain/notes";
+import { isRepeatRequest, stripToolText } from "@/lib/domain/transcript";
 import { env } from "@/lib/env";
 import { extractFacts, gradeDebrief, isTransient, transcribeDocument } from "@/lib/server/gemini";
 import { createServiceClient } from "@/lib/supabase/server";
@@ -165,12 +166,13 @@ export async function runDebrief(sessionId: string) {
     const answered = (turns ?? []).filter(
       (t) =>
         (t.user_transcript_corrected ?? t.user_transcript_raw ?? "").trim() &&
-        // Handing over the passport isn't an answer to grade.
-        !(t.seq === 1 && !String(t.officer_text).includes("?")),
+        // Handing over the passport isn't an answer to grade, nor is "What?".
+        !(t.seq === 1 && !String(t.officer_text).includes("?")) &&
+        !isRepeatRequest(t.user_transcript_corrected ?? t.user_transcript_raw ?? ""),
     );
     const input = answered.map((t) => ({
       seq: t.seq,
-      officer: t.officer_text,
+      officer: stripToolText(t.officer_text),
       answer: (t.user_transcript_corrected ?? t.user_transcript_raw ?? "").trim(),
       seconds: t.started_ms != null && t.ended_ms != null ? (t.ended_ms - t.started_ms) / 1000 : 0,
     }));

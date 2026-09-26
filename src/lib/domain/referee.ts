@@ -64,11 +64,27 @@ export function shouldEnd(state: RefereeState, elapsedSec: number): boolean {
   return false;
 }
 
+/**
+ * The officer's final view of each topic: the latest judgement after any
+ * follow-ups, as a real officer weighs a topic once they've heard it out.
+ * A contradiction sticks: clarifying later doesn't erase it.
+ */
+export function finalJudgements(state: RefereeState): TurnEvaluation[] {
+  const byProbe = new Map<string, TurnEvaluation>();
+  for (const t of state.turns) {
+    const prev = byProbe.get(t.probeId);
+    if (prev && (prev.quality === "contradiction" || prev.inconsistency)) continue;
+    byProbe.set(t.probeId, t);
+  }
+  return [...byProbe.values()];
+}
+
 export function decide(state: RefereeState): Decision {
   const reasons: string[] = [];
-  const critical = state.turns.filter((t) => isCritical(state, t.probeId));
+  const judged = finalJudgements(state);
+  const critical = judged.filter((t) => isCritical(state, t.probeId));
 
-  const contradictions = state.turns.filter((t) => t.quality === "contradiction" || t.inconsistency);
+  const contradictions = judged.filter((t) => t.quality === "contradiction" || t.inconsistency);
   if (contradictions.some((t) => isCritical(state, t.probeId))) {
     reasons.push("An answer contradicted your DS-160 or an earlier answer on a key point.");
     return { outcome: "refused_214b", reasons };

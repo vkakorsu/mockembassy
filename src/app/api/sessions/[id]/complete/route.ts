@@ -1,5 +1,6 @@
 import { after } from "next/server";
 import { z } from "zod";
+import { stripToolText } from "@/lib/domain/transcript";
 import { features } from "@/lib/env";
 import { runDebrief } from "@/lib/server/jobs";
 import { finalDecision } from "@/lib/server/referee-service";
@@ -34,7 +35,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/sessions/[id]/c
         body.turns.map((t, i) => ({
           session_id: id,
           seq: i + 1,
-          officer_text: t.officer || "(silence)",
+          officer_text: stripToolText(t.officer) || "(silence)",
           user_transcript_raw: t.answer,
           started_ms: t.startedMs,
           ended_ms: t.endedMs,

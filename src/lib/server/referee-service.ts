@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { CaseProfile } from "@/lib/domain/case";
-import type { SessionPlan } from "@/lib/domain/director";
+import { NOTE_PROBE_PREFIX, type SessionPlan } from "@/lib/domain/director";
 import { documentLabel, matchDocumentKind } from "@/lib/domain/notes";
 import { DECISION_LINES } from "@/lib/domain/officer-prompt";
 import {
@@ -196,12 +196,17 @@ async function documentView(
                 : kind === "property"
                   ? { ownsProperty: p.ties.ownsProperty }
                   : {};
-  const shows = (session.plan.notes ?? []).filter((n) => n.source === kind).map((n) => n.text);
+  const notes = (session.plan.notes ?? []).filter((n) => n.source === kind);
+  // The planned question about this document, if there is one.
+  const planned = notes.find((n) => session.plan.probes.some((p) => p.probeId === `${NOTE_PROBE_PREFIX}${n.id}`));
   return {
     available: true,
     document: documentLabel(kind),
     facts,
-    shows,
-    instruction: "React as an officer glancing at it: one short question about what stands out, or 'Okay' and move on.",
+    shows: notes.map((n) => n.text),
+    ...(planned ? { ask_about: planned.text, probe_id: `${NOTE_PROBE_PREFIX}${planned.id}` } : {}),
+    instruction: planned
+      ? "Ask one short question about ask_about, in your own words, then log the answer under probe_id."
+      : "React as an officer glancing at it: one short question about what stands out, or 'Okay' and move on.",
   };
 }

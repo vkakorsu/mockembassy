@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { planSession } from "../director";
 import { amaF1 } from "../fixtures";
-import { createRefereeState, decide, recordTurn, shouldEnd, uncoveredCritical, type TurnEvaluation } from "../referee";
+import { createRefereeState, decide, finalJudgements, recordTurn, shouldEnd, uncoveredCritical, type TurnEvaluation } from "../referee";
 
 function stateWith(turns: Omit<TurnEvaluation, "durationSec">[], scepticism = 0.5) {
   const plan = planSession({ profile: amaF1, pastSessions: [], readiness: 0.3, mode: "real", seed: "ref" });
@@ -60,5 +60,16 @@ describe("referee", () => {
     const critical = s.plan.probes.filter((p) => p.critical).map((p) => p.probeId);
     expect(uncoveredCritical(s)).toEqual(critical);
     expect(uncoveredCritical(stateWith(critical.map(() => ({ probeId: "*", quality: "strong" as const }))))).toEqual([]);
+  });
+
+  it("judges each topic on the officer's final view, after follow-ups", () => {
+    const s0 = stateWith([], 0.25);
+    const probe = s0.plan.probes.find((p) => p.critical)!.probeId;
+    let s = s0;
+    for (const q of ["weak", "adequate"] as const) s = recordTurn(s, { probeId: probe, quality: q, durationSec: 10 });
+    expect(finalJudgements(s).map((t) => t.quality)).toEqual(["adequate"]);
+    // A contradiction isn't erased by a later answer.
+    s = recordTurn(recordTurn(s0, { probeId: probe, quality: "contradiction", durationSec: 5 }), { probeId: probe, quality: "strong", durationSec: 5 });
+    expect(decide(s).outcome).toBe("refused_214b");
   });
 });

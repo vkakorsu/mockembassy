@@ -271,7 +271,8 @@ function pickNoteProbe(rng: Rng, notes: readonly CaseNote[], past: readonly Past
   const note = pool.find((n) => (r -= NOTE_WEIGHT[n.category] ?? 1) <= 0) ?? pool[pool.length - 1];
   const entry = isOnScreen(note.sourceKind)
     ? `Ask about this, in your own words: ${note.text}`
-    : `Ask to see their ${documentLabel(note.sourceKind)}, call request_document, then ask about this in your own words: ${note.text}`;
+    : // The officer learns what's in a folder document only by looking at it.
+      `Ask to see their ${documentLabel(note.sourceKind)} ("Can I see your ${documentLabel(note.sourceKind)}?"), call request_document and wait for it. Ask about what it tells you to.`;
   return {
     probeId: NOTE_PROBE_PREFIX + note.id,
     critical: false,
