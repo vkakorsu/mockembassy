@@ -80,6 +80,7 @@ export const SessionPlanSchema = z.object({
     .max(5),
   targetDurationSec: z.number().int().min(45).max(360),
   earlyDecisionAllowed: z.boolean(),
+  visaType: z.enum(["F1", "B1B2"]).optional(),
   events: z.array(z.enum(REALISM_EVENTS)).max(2),
   noveltyRate: z.number().min(0).max(1),
 });
@@ -221,6 +222,7 @@ export function planSession(input: DirectorInput): SessionPlan {
   return SessionPlanSchema.parse({
     seed: input.seed,
     mode,
+    visaType: profile.visaType,
     officer,
     probes,
     targetDurationSec: Math.round(between(rng, minDur, maxDur)),

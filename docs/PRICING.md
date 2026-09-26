@@ -17,7 +17,7 @@
      - $185 MRV fee
      - $350 SEVIS fee ([SevisGo](https://www.sevisgo.com/sevis-fee))
      - $250 visa integrity fee on issuance ([Manifest Law](https://manifestlaw.com/blog/immigration/news/visa-integrity-fee/))
-   - A B1/B2 applicant pays about **$435 (≈ GHS 5,000)** and may face a $10k–$20k bond.
+   - A B1/B2 applicant pays about **$435 (≈ GHS 5,000)**. Ghana is not on the US visa bond list (checked 26 Sep 2026).
    - A local consultant charges around **$150 (≈ GHS 1,725)** for a one-hour mock.
    - **Applicants are not the median earner.** The average formal salary is roughly GHS 3,500–5,000 a month ([Multiplier](https://www.usemultiplier.com/ghana/average-salary)), but F-1 applicants must document a full year of funding, and B1/B2 applicants must show strong ties. The price should still be under a week of an average salary. That's why the hero product is not GHS 700.
 3. **Never price on the outcome.** No "pay only if approved" and no "money back if refused":

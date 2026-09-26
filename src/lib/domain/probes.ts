@@ -138,9 +138,32 @@ export const PROBES: readonly Probe[] = [
       "Where do you see yourself working after the program?",
       "What's your plan once you finish?",
     ],
-    followUpVague: ["Which companies in Ghana hire for that?", "What role, exactly?"],
+    followUpVague: ["What kind of work, back home?", "Why does this degree help you there?"],
     followUpContradiction: ["A minute ago you said something different. Which is it?"],
-    mustInclude: () => ["a concrete role or employer in Ghana"],
+    // 9 FAM 402.5-5: young students aren't expected to have long-range plans; officers
+    // look for a *present* intent to depart. Mid-career applicants are held to more.
+    mustInclude: (c) =>
+      c.study?.currentOccupation || c.applicant.age >= 26
+        ? ["a specific, honest plan that uses the degree back home"]
+        : ["an honest present intention to return after studying"],
+  },
+  {
+    id: "f1.academic.preparedness",
+    visaTypes: f1,
+    category: "academic",
+    critical: false,
+    // Officers don't go behind the I-20 on admission, but may check English and
+    // academic preparation for the course (9 FAM 402.5-5).
+    relevance: () => 0.5,
+    grounding: ["study.program", "study.level"],
+    entry: [
+      "What did you study before this?",
+      "How did you do in your last degree?",
+      "Did you take any English or admission tests?",
+    ],
+    followUpVague: ["What were your grades like?"],
+    followUpContradiction: ["That's not what your application shows."],
+    mustInclude: () => ["previous study and results, stated simply"],
   },
   {
     id: "f1.ties.job",

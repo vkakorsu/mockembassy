@@ -21,7 +21,7 @@
 |---|---|
 | **Name** | **Okwan** (Twi for *the way / the road*). `okwan.ai` is the primary domain. `okwan.app` and `getokwan.com` redirect to it. All three were available on 25 Sep 2026. See §9. |
 | **Core bet** | Don't build a question-bank chatbot. Build the **2.5-minute interview itself**, and **never the same one twice**. A Director with memory of every earlier session plans each interview around *your* case and *your* weak spots. Then a fresh Officer, who knows only what a real officer would see, runs it, improvises follow-ups from your answers, and is decided by a rules-based Referee (§2.2). The debrief is grounded in your own documents. |
-| **Wedge** | Start with F-1 (81% refusal rate for Ghana in 2025) and B1/B2 (64.3% refusal rate, plus a $10k–$20k visa bond). Add J-1, then others. |
+| **Wedge** | Start with F-1 (81% refusal rate for Ghana in 2025) and B1/B2 (64.3% refusal rate). Add J-1, then others. |
 | **Live officer voice** | **Gemini 3.8 Live**, a native speech-to-speech model: about 1.2 s to first audio, built-in barge-in, about $0.02–0.03 of audio per minute. |
 | **Gemini 3.8 Flash TTS** | **Relevant, but not for the live conversation.** It takes about 13 s to first token. Use it for pre-rendered officer audio: the drill library, offline practice, "hear a strong answer", and marketing demos. See §3. |
 | **Transcripts and delivery analysis** | **Gemini 3.5 Transcribe** runs after the interview. It gives word timestamps for pause and pace analysis. Users can correct their transcript, because West-African-accented ASR is still error-prone. |
@@ -39,7 +39,7 @@
 
 - **F-1 refusals in Ghana hit a record 81% in 2025**, up from 72% in 2024. Meanwhile, Ghanaian enrolment in the US grew 36.5% to 12,825 students in 2024/25. Demand is high and success is rare. ([ICEF Monitor](https://monitor.icef.com/2026/04/visa-rejections-climb-in-the-us-for-international-students-from-key-markets-including-india/), [Yen.com.gh](https://yen.com.gh/people/302892-us-releases-list-countries-highest-student-visa-refusal-rates-ghana-unenviable-score/))
 - **The B1/B2 refusal rate for Ghana was 64.3% in FY2025**, against a 27.8% global average. ([Alma](https://www.tryalma.com/learn/visa-denial-rate-statistics)) This is a secondary aggregator, so check it against State Dept 214(b) tables before quoting it in marketing.
-- **The visa bond became permanent on 3 Aug 2026** at $10k, $15k or $20k, and Ghana is on the list. The cost of a weak visitor-visa case is now enormous. ([Yen.com.gh](https://yen.com.gh/world/us/309108-us-lists-10-west-african-countries-citizens-face-20000-visa-bond/), [BAL](https://www.bal.com/immigration-news/united-states-38-countries-now-subject-to-state-departments-visa-bond-requirements/))
+- **Visa bond: Ghana is *not* on the list** (corrected 26 Sep 2026). The B1/B2 bond programme became permanent on 3 Aug 2026 at $10k, $15k or $20k, for 50 designated countries, including Nigeria, Togo and Benin, but not Ghana. Monitor the list, because designations are added on a rolling basis with 15 days' notice. An earlier draft of this plan wrongly said Ghana was included, based on secondary news reports. ([State Dept, Mar 2026](https://www.state.gov/releases/office-of-the-spokesperson/2026/03/state-department-expands-visa-bonds-to-combat-illegal-overstay-rates), [Federal Register final rule](https://www.federalregister.gov/documents/2026/08/03/2026-15726/visas-visa-bond-program), [BAL](https://www.bal.com/immigration-news/united-states-state-department-finalizes-permanent-visa-bond-program-for-certain-b-1-b-2-applicants/))
 - **Social-media vetting:** student applicants must set their accounts to public before the interview. ([GhanaWeb](https://www.ghanaweb.com/GhanaHomePage/business/Why-the-US-Embassy-requires-access-to-social-media-for-student-visa-applications-1988975))
 - **Five-year multiple-entry visas were restored for Ghana on 26 Sep 2025**, after the July 2025 single-entry restriction was lifted. A good outcome is worth more again. ([Ghana MFA](https://mfa.gov.gh/index.php/reversal-of-u-s-visa-restrictions-on-ghana/), [ISD](https://isd.gov.gh/us-lifts-visa-restrictions-on-ghana-restores-5-year-multiple-entry-visas/))
 - **Fees:** the $185 MRV fee is non-refundable, and the new $250 "visa integrity fee" is being rolled out on issuance. A refusal costs real money, which anchors our pricing. ([Manifest Law](https://manifestlaw.com/blog/immigration/news/visa-integrity-fee/), [BU ISSO](https://www.bu.edu/isso/2026/05/19/visa-integrity-fee/))
@@ -63,7 +63,7 @@
 
    Coaching someone to misrepresent facts exposes them to a **permanent misrepresentation bar**, INA 212(a)(6)(C)(i). The product has to protect users from that.
 
-**Competitors:** VisaInterview.ai, MockVisa, Permito, Visavi, YMGrad and Matherium ([Permito's roundup](https://permito.ai/blog/best-ai-mock-interview-tools-visa-2026), [VisaInterview roundup](https://www.visainterview.ai/blog/best-ai-visa-interview-prep-tools-2026)). They are all generic, India-first, F-1 question banks with text or voice feedback. **None of them is built around a Ghanaian applicant's actual documents, the Accra post, cedi pricing with MoMo, or the visa bond.** Local human consultants charge around $150 for an hour-long mock ([Gumroad example](https://globalvisashelp.gumroad.com/l/StudentVisaDeepDiveDocumentsInterviewPrep)), and quality varies a lot. That gap is the opening.
+**Competitors:** VisaInterview.ai, MockVisa, Permito, Visavi, YMGrad and Matherium ([Permito's roundup](https://permito.ai/blog/best-ai-mock-interview-tools-visa-2026), [VisaInterview roundup](https://www.visainterview.ai/blog/best-ai-visa-interview-prep-tools-2026)). They are all generic, India-first, F-1 question banks with text or voice feedback. **None of them is built around a Ghanaian applicant's actual documents, the Accra post, or cedi pricing with MoMo.** Local human consultants charge around $150 for an hour-long mock ([Gumroad example](https://globalvisashelp.gumroad.com/l/StudentVisaDeepDiveDocumentsInterviewPrep)), and quality varies a lot. That gap is the opening.
 
 ---
 
@@ -89,7 +89,7 @@ The product has four parts: **Case, Window, Debrief and Readiness.** Each one ex
   - **Unclear sponsor:** the sponsor's relationship or income isn't clear.
   - **Program doesn't fit the career:** e.g. a mid-career banker going to a generic MBA with no plan to return.
   - **DS-160 mismatch:** the documents contradict the DS-160 (dates, employer, address).
-  - **Visitor-visa costs:** B1/B2 visa bond exposure and the $250 integrity fee.
+  - **Visitor-visa costs:** the $250 visa integrity fee (and the bond, only if Ghana is ever added to the bond list).
   - **Social-media vetting:** a reminder to set accounts to public (F/M/J).
   - **Prior refusal with nothing changed:** a 214(b) refusal and no new evidence since.
 
@@ -453,7 +453,7 @@ What has changed: AI Overviews, AI Mode, ChatGPT Search, Perplexity and Claude n
 2. **Reported Questions**: a moderated, anonymised database of what applicants say officers asked them, collected with consent from the outcomes step. Break it down by visa type, program and month. This is first-party data that AI engines cite. User-generated content of this kind is also where Reddit-style trust comes from.
 3. **Guides reviewed by experts.** Each page opens with a **40–60-word answer block**, followed by depth, statistics with citations, and the reviewer's byline. Example topics:
    - US student visa interview questions for Ghanaians (2026)
-   - The visa bond explained for Ghanaians
+   - The US visa bond: which West African countries it covers (Ghana isn't one) and what that means
    - What a 214(b) refusal means and when to reapply
    - The F-1 funding questions officers ask, and how the I-20 cost is checked
    - Accra embassy interview day: what actually happens
@@ -618,8 +618,8 @@ Availability changes quickly, so buy soon if you're going with it. The domain wa
 - ICEF Monitor, F-1 refusals: https://monitor.icef.com/2026/04/visa-rejections-climb-in-the-us-for-international-students-from-key-markets-including-india/
 - Yen.com.gh, Ghana F-1 refusals: https://yen.com.gh/people/302892-us-releases-list-countries-highest-student-visa-refusal-rates-ghana-unenviable-score/
 - Alma, visa denial statistics: https://www.tryalma.com/learn/visa-denial-rate-statistics
-- Yen.com.gh, visa bond list: https://yen.com.gh/world/us/309108-us-lists-10-west-african-countries-citizens-face-20000-visa-bond/
-- BAL, visa bond countries: https://www.bal.com/immigration-news/united-states-38-countries-now-subject-to-state-departments-visa-bond-requirements/
+- State Dept, visa bond expansion (Mar 2026): https://www.state.gov/releases/office-of-the-spokesperson/2026/03/state-department-expands-visa-bonds-to-combat-illegal-overstay-rates
+- Federal Register, visa bond final rule: https://www.federalregister.gov/documents/2026/08/03/2026-15726/visas-visa-bond-program
 - Ghana MFA, reversal of visa restrictions: https://mfa.gov.gh/index.php/reversal-of-u-s-visa-restrictions-on-ghana/
 - GhanaWeb, social-media vetting: https://www.ghanaweb.com/GhanaHomePage/business/Why-the-US-Embassy-requires-access-to-social-media-for-student-visa-applications-1988975
 - The Voice of Africa, extra appointment slots: https://thevoiceofafrica.com/2026/02/18/u-s-embassy-in-ghana-opens-1000-new-visa-interview-slots-amid-high-demand/
