@@ -5,7 +5,9 @@ import type { SessionPlan } from "@/lib/domain/director";
 import { mergeDraft, type DraftConflict } from "@/lib/domain/draft";
 import { mergeGrades } from "@/lib/domain/grade-merge";
 import { validateRewrite } from "@/lib/domain/rewrite-validator";
-import { extractFacts, gradeDebrief, isTransient } from "@/lib/server/gemini";
+import { redactIdentifiers, toUsd } from "@/lib/domain/notes";
+import { env } from "@/lib/env";
+import { extractFacts, gradeDebrief, isTransient, transcribeDocument } from "@/lib/server/gemini";
 import { createServiceClient } from "@/lib/supabase/server";
 
 /**
@@ -20,19 +22,65 @@ export async function runExtraction(documentId: string) {
   try {
     const { data: file, error } = await db.storage.from("documents").download(doc.storage_path);
     if (error || !file) throw error ?? new Error("File missing");
-    const facts = await extractFacts({
-      bytes: new Uint8Array(await file.arrayBuffer()),
-      mimeType: file.type || "application/pdf",
-      kind: doc.kind,
-    });
+    const input = { bytes: new Uint8Array(await file.arrayBuffer()), mimeType: file.type || "application/pdf", kind: doc.kind };
+    const [facts, fullText] = await Promise.all([
+      extractFacts(input),
+      // The transcription is a bonus: a failure here shouldn't fail the facts.
+      transcribeDocument(input).catch(() => null),
+    ]);
     // Never persist raw passport numbers; only the last four digits live on the case.
-    const { appointment, documentLooksLike, ...profileFacts } = facts;
+    const { appointment, documentLooksLike, notes, ...profileFacts } = facts;
+
+    // Statement amounts come as printed (usually cedis); convert for the USD fields.
+    let fx: { amount: number; currency: string; usd: number; rate: number } | undefined;
+    if (profileFacts.funding) {
+      const { fundsAvailable, recentLargeDeposit, ...rest } = profileFacts.funding;
+      const funding: typeof rest = { ...rest };
+      if (fundsAvailable && funding.liquidFundsUsd === undefined) {
+        const usd = toUsd(fundsAvailable.amount, fundsAvailable.currency, env.fxGhsPerUsd);
+        if (usd !== undefined) {
+          funding.liquidFundsUsd = usd;
+          if (!/^(USD|US\$|\$)$/i.test(fundsAvailable.currency.trim())) {
+            fx = { amount: fundsAvailable.amount, currency: fundsAvailable.currency, usd, rate: env.fxGhsPerUsd };
+          }
+        }
+      }
+      if (recentLargeDeposit && funding.recentLargeDepositUsd === undefined) {
+        const usd = toUsd(recentLargeDeposit.amount, recentLargeDeposit.currency, env.fxGhsPerUsd);
+        if (usd !== undefined) funding.recentLargeDepositUsd = usd;
+      }
+      profileFacts.funding = funding;
+    }
 
     const { data: caseRow } = await db.from("cases").select("draft_profile, interview_at").eq("id", doc.case_id).single();
     const existing = (caseRow?.draft_profile ?? {}) as Record<string, unknown>;
     const { merged, conflicts } = mergeDraft(existing, profileFacts, doc.kind);
     const allConflicts = [...((existing._conflicts as DraftConflict[]) ?? []), ...conflicts];
-    await db.from("cases").update({ draft_profile: { ...merged, _conflicts: allConflicts } }).eq("id", doc.case_id);
+    await db
+      .from("cases")
+      .update({ draft_profile: { ...merged, _conflicts: allConflicts, ...(fx ? { _fx: fx } : {}) } })
+      .eq("id", doc.case_id);
+
+    // Re-reading replaces this document's undecided notes; decided ones stay
+    // (and a removed note doesn't come back).
+    await db.from("case_notes").delete().eq("document_id", doc.id).eq("status", "pending");
+    const { data: kept } = await db.from("case_notes").select("text").eq("document_id", doc.id);
+    const keptTexts = new Set((kept ?? []).map((n) => n.text));
+    const fresh = (notes ?? [])
+      .map((n) => ({ ...n, text: redactIdentifiers(n.text), quote: n.quote ? redactIdentifiers(n.quote) : null }))
+      .filter((n) => !keptTexts.has(n.text));
+    if (fresh.length) {
+      await db.from("case_notes").insert(
+        fresh.map((n) => ({
+          case_id: doc.case_id,
+          document_id: doc.id,
+          source_kind: doc.kind,
+          category: n.category,
+          text: n.text,
+          quote: n.quote,
+        })),
+      );
+    }
 
     // An appointment confirmation is proof for the pass rules (docs/PRICING.md §3a).
     if (doc.kind === "appointment_confirmation" && appointment?.date) {
@@ -44,7 +92,12 @@ export async function runExtraction(documentId: string) {
     }
     await db
       .from("documents")
-      .update({ extraction: { documentLooksLike, facts: profileFacts }, extraction_status: "done", extraction_error: null })
+      .update({
+        extraction: { documentLooksLike, facts: profileFacts },
+        full_text: fullText ? redactIdentifiers(fullText).slice(0, 60_000) : null,
+        extraction_status: "done",
+        extraction_error: null,
+      })
       .eq("id", doc.id);
   } catch (e) {
     await db
@@ -80,6 +133,26 @@ export async function runDebrief(sessionId: string) {
       .eq("session_id", sessionId)
       .order("seq");
 
+    const { data: noteRows } = await db
+      .from("case_notes")
+      .select("text")
+      .eq("case_id", session!.case_id)
+      .eq("status", "confirmed");
+    const confirmedNotes = (noteRows ?? []).map((n) => n.text as string);
+    const { data: docRows } = await db
+      .from("documents")
+      .select("kind, full_text")
+      .eq("case_id", session!.case_id)
+      .not("full_text", "is", null);
+    // Keep the grading call bounded: ~40k characters of documents in total.
+    let budget = 40_000;
+    const documents = (docRows ?? []).flatMap((d) => {
+      if (budget <= 0) return [];
+      const text = String(d.full_text).slice(0, Math.min(15_000, budget));
+      budget -= text.length;
+      return [{ kind: d.kind as string, text }];
+    });
+
     const answered = (turns ?? []).filter((t) => (t.user_transcript_corrected ?? t.user_transcript_raw ?? "").trim());
     const input = answered.map((t) => ({
       seq: t.seq,
@@ -89,7 +162,10 @@ export async function runDebrief(sessionId: string) {
     }));
     // Grade twice and merge (src/lib/domain/grade-merge.ts); one failed run still yields a debrief.
     const runs = input.length
-      ? await Promise.allSettled([gradeDebrief({ profile, plan, turns: input }), gradeDebrief({ profile, plan, turns: input })])
+      ? await Promise.allSettled([
+          gradeDebrief({ profile, plan, turns: input, confirmedNotes, documents }),
+          gradeDebrief({ profile, plan, turns: input, confirmedNotes, documents }),
+        ])
       : [];
     const ok = runs.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
     if (input.length && !ok.length) throw (runs[0] as PromiseRejectedResult).reason;
@@ -100,7 +176,8 @@ export async function runDebrief(sessionId: string) {
       let stronger = g?.stronger_answer ?? null;
       let blocked: string[] = [];
       if (stronger) {
-        const check = validateRewrite(stronger, profile, t.answer);
+        // Confirmed notes are the applicant's own facts too.
+        const check = validateRewrite(stronger, profile, `${t.answer} ${confirmedNotes.join(" ")}`);
         if (!check.ok) {
           blocked = check.unsupported;
           stronger = null; // never show a rewrite that adds facts

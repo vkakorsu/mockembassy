@@ -5,7 +5,8 @@ import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { CaseProfile } from "@/lib/domain/case";
-import { planSession, type SessionMode } from "@/lib/domain/director";
+import { NOTE_PROBE_PREFIX, planSession, type SessionMode } from "@/lib/domain/director";
+import type { CaseNote, NoteCategory } from "@/lib/domain/notes";
 import { FREE_MOCK_SECONDS, type PlanId } from "@/lib/domain/entitlement";
 import { moveInterviewDate } from "@/lib/domain/pass";
 import { MAX_CASES_PER_ACCOUNT, sameApplicant } from "@/lib/domain/identity";
@@ -100,13 +101,13 @@ export async function registerDocument(caseId: string, kind: string, storagePath
   return { id: data.id as string };
 }
 
-/** Re-reads a document whose extraction failed (usually a brief model overload). */
+/** Reads a document again: after a failure (usually a brief overload), or to pick up newer reading. */
 export async function retryExtraction(documentId: string) {
   const { supabase } = await requireUser();
   // RLS: only the owner can see the row.
   const { data } = await supabase.from("documents").select("case_id, extraction_status").eq("id", documentId).maybeSingle();
   if (!data) return;
-  if (data.extraction_status === "failed" && features.gemini && features.supabaseAdmin) {
+  if (data.extraction_status !== "pending" && features.gemini && features.supabaseAdmin) {
     await createServiceClient().from("documents").update({ extraction_status: "pending", extraction_error: null }).eq("id", documentId);
     after(() => runExtraction(documentId));
   }
@@ -118,6 +119,8 @@ export async function deleteDocument(documentId: string) {
   const { data } = await supabase.from("documents").select("storage_path, case_id").eq("id", documentId).maybeSingle();
   if (!data) return;
   await supabase.storage.from("documents").remove([data.storage_path]);
+  // Confirmed notes are the user's facts and stay; undecided ones go with the document.
+  await createServiceClient().from("case_notes").delete().eq("document_id", documentId).neq("status", "confirmed");
   await supabase.from("documents").delete().eq("id", documentId);
   redirect(`/app/cases/${data.case_id}/documents`);
 }
@@ -240,16 +243,31 @@ export async function startSession(caseId: string, requestedMode: SessionMode) {
   const relevant = probesFor(caseRow.visa_type).filter((p) => p.relevance(current.profile) > 0).map((p) => p.id);
   const mode: SessionMode = ent.kind === "free" ? "real" : requestedMode;
   const seed = randomUUID();
+  const [{ data: noteRows }, { data: docRows }] = await Promise.all([
+    supabase.from("case_notes").select("id, source_kind, category, text").eq("case_id", caseId).eq("status", "confirmed"),
+    supabase.from("documents").select("kind").eq("case_id", caseId),
+  ]);
+  const notes: CaseNote[] = (noteRows ?? []).map((n) => ({
+    id: n.id,
+    sourceKind: n.source_kind,
+    category: n.category as NoteCategory,
+    text: n.text,
+  }));
   const plan = planSession({
     profile: current.profile,
     pastSessions: history,
     readiness: readinessFrom(history, relevant),
     mode,
     seed,
+    notes,
+    folder: (docRows ?? []).map((d) => d.kind as string),
   });
   if (ent.kind === "free") {
     plan.targetDurationSec = FREE_MOCK_SECONDS;
-    plan.probes = plan.probes.slice(0, 2);
+    // Two topics; if there's a question from their own documents, it's one of them.
+    const own = plan.probes.find((p) => p.probeId.startsWith(NOTE_PROBE_PREFIX));
+    const rest = plan.probes.filter((p) => p !== own);
+    plan.probes = own ? [rest.find((p) => p.critical) ?? rest[0], own] : rest.slice(0, 2);
   }
 
   // Sessions are written by the server only (users can't forge plans).
@@ -372,4 +390,32 @@ export async function retryDebrief(sessionId: string) {
     after(() => runDebrief(sessionId));
   }
   redirect(`/app/sessions/${sessionId}/debrief`);
+}
+
+/* ------------------------------------------------------------ case notes */
+
+/** Keep or remove one note from a document. Only kept notes reach the officer or coach. */
+export async function setNoteStatus(noteId: string, status: "confirmed" | "removed" | "pending") {
+  const { supabase } = await requireUser();
+  z.enum(["confirmed", "removed", "pending"]).parse(status);
+  // RLS: only the case owner can see the note.
+  const { data } = await supabase.from("case_notes").select("case_id").eq("id", noteId).maybeSingle();
+  if (!data) return;
+  await createServiceClient()
+    .from("case_notes")
+    .update({ status, decided_at: status === "pending" ? null : new Date().toISOString() })
+    .eq("id", noteId);
+  redirect(`/app/cases/${data.case_id}/profile#notes`);
+}
+
+export async function keepAllNotes(caseId: string) {
+  const { supabase } = await requireUser();
+  const caseRow = await getCase(supabase, caseId);
+  if (!caseRow) return;
+  await createServiceClient()
+    .from("case_notes")
+    .update({ status: "confirmed", decided_at: new Date().toISOString() })
+    .eq("case_id", caseId)
+    .eq("status", "pending");
+  redirect(`/app/cases/${caseId}/profile#notes`);
 }

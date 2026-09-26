@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { deleteDocument, retryExtraction } from "@/app/app/actions";
+import { AutoRefresh } from "@/components/app/auto-refresh";
 import { DocumentUploader } from "@/components/app/document-uploader";
 import { BackLink, Button, Card, PageTitle } from "@/components/app/ui";
 import { env, features } from "@/lib/env";
@@ -22,6 +23,7 @@ export default async function Documents(props: PageProps<"/app/cases/[id]/docume
 
   return (
     <>
+      {(docs ?? []).some((d) => d.extraction_status === "pending") && <AutoRefresh />}
       <BackLink href={`/app/cases/${id}`}>{caseRow.applicant_name}</BackLink>
       <PageTitle eyebrow="Documents" title="What the officer will see">
         Upload what you&rsquo;ll bring to the interview. We read the facts, then you confirm them. Only confirmed facts are
@@ -52,9 +54,9 @@ export default async function Documents(props: PageProps<"/app/cases/[id]/docume
                     </span>
                   </span>
                   <span className="flex shrink-0 gap-2">
-                    {d.extraction_status === "failed" && (
+                    {d.extraction_status !== "pending" && (
                       <form action={retryExtraction.bind(null, d.id)}>
-                        <Button variant="ghost">Try again</Button>
+                        <Button variant="ghost">{d.extraction_status === "failed" ? "Try again" : "Read again"}</Button>
                       </form>
                     )}
                     <form action={deleteDocument.bind(null, d.id)}>

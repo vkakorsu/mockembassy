@@ -10,7 +10,18 @@ const get = (o: V | undefined, path: string): string => {
   return v === undefined || v === null ? "" : Array.isArray(v) ? v.join(", ") : String(v);
 };
 
-export function ProfileForm({ caseId, visaType, values }: { caseId: string; visaType: "F1" | "B1B2"; values: V }) {
+export function ProfileForm({
+  caseId,
+  visaType,
+  values,
+  fundsHint,
+}: {
+  caseId: string;
+  visaType: "F1" | "B1B2";
+  values: V;
+  /** How a statement's cedi balance was converted, for the user to check. */
+  fundsHint?: string;
+}) {
   const [state, action, pending] = useActionState<ConfirmState, FormData>(confirmProfile.bind(null, caseId), {});
   const v = (p: string) => get(values, p);
   const sponsor = ((values.funding as V | undefined)?.sponsors as V[] | undefined)?.[0];
@@ -65,7 +76,7 @@ export function ProfileForm({ caseId, visaType, values }: { caseId: string; visa
       <Field label="Sponsor (relationship)" hint="e.g. self, father, employer"><input name="sponsor.relationship" defaultValue={String(sponsor?.relationship ?? "")} className={inputCls} /></Field>
       <Field label="Sponsor's occupation"><input name="sponsor.occupation" defaultValue={String(sponsor?.occupation ?? "")} className={inputCls} /></Field>
       <Field label="Sponsor's yearly income (USD)"><input name="sponsor.annualIncomeUsd" type="number" min={0} defaultValue={String(sponsor?.annualIncomeUsd ?? "")} className={inputCls} /></Field>
-      <Field label="Documented funds available (USD)"><input name="funding.liquidFundsUsd" type="number" min={0} defaultValue={v("funding.liquidFundsUsd")} className={inputCls} required /></Field>
+      <Field label="Documented funds available (USD)" hint={fundsHint}><input name="funding.liquidFundsUsd" type="number" min={0} defaultValue={v("funding.liquidFundsUsd")} className={inputCls} required /></Field>
       <Field label="Any large recent deposit (USD)"><input name="funding.recentLargeDepositUsd" type="number" min={0} defaultValue={v("funding.recentLargeDepositUsd")} className={inputCls} /></Field>
 
       <h2 className={h}>Ties to Ghana</h2>

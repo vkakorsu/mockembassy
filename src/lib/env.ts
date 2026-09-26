@@ -45,6 +45,10 @@ export const env = {
     .filter(Boolean),
 
   paystackSecretKey: first("PAYSTACK_SECRET_KEY"),
+
+  // Cedis per US dollar, for converting statement balances. Approximate: the
+  // user sees the conversion and confirms or corrects the dollar figure.
+  fxGhsPerUsd: Number(first("FX_GHS_PER_USD") ?? 11.5),
 };
 
 export const features = {

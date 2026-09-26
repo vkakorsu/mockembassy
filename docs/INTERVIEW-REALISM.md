@@ -51,3 +51,17 @@ What the first real session showed, and what changed:
 | Officer asked for the passport and the first question in one breath | Opening instruction said "then start" | The document request is the whole first turn; if the applicant passes documents silently, the client tells the officer after 3 s |
 | "Approved" after uncertain funding answers, in a session the applicant left early | Officer logged the answers "adequate"; the bar let adequate pass even for a sceptical officer; leaving early still produced a decision | Anchored quality rubric for the officer; bar raised to 0.6 + 0.25 × scepticism; leaving before the key topics are covered gives "No decision" |
 | Debrief grading caught what the officer missed (sponsor also funds a cousin; answering with a question) | Independent grader works | Nothing; this gap is what the admin quality page monitors |
+
+## 6. Whole-document understanding
+
+Applicants' cases differ in ways a fixed form can't hold, so each document is now read three ways:
+
+| Layer | What it holds | Who sees it |
+|---|---|---|
+| Structured profile | ~30 fields (age, school, funds in USD, sponsor, ties…) | Director rules, Referee, officer's file |
+| Case notes | Free-form facts specific to this applicant, each with its source quote ("GH₵270,000 deposited 2 Sep, three weeks before the interview") | Only after the user keeps them. Notes from the DS-160, I-20, passport or a refusal letter are on the officer's screen. Other notes stay in the folder until the officer asks for that document (`request_document`, a blocking tool) |
+| Full transcription | The whole document as Markdown, with ID and account numbers cut to the last 4 digits, deleted with the document after 30 days | The debrief coach only, to spot what an answer should have mentioned and what evidence is missing. Suggested answers may still use only confirmed facts and notes |
+
+Why not give the officer everything: a real Accra officer works from the DS-160 and SEVIS record and rarely reads a bank statement unless they ask for it. An officer who knows every line would be less realistic, and an unconfirmed misreading could have the officer, or a coaching rewrite, state something untrue.
+
+The Director turns one kept note into a question in most sessions (never the opener, not repeated within two sessions), weighted towards funding and history. For folder notes the officer first asks to see the document. Bank statement amounts are kept in their original currency and converted to USD at `FX_GHS_PER_USD` for the user to confirm.

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { CaseProfile } from "./case";
 import { scanCase } from "./case-scan";
+import { documentLabel, isOnScreen, type CaseNote } from "./notes";
 import { sampleOfficer, type Officer } from "./officer";
 import { fillTemplate, isFillable, probesFor, type Probe } from "./probes";
 import { between, createRng, pick, type Rng } from "./random";
@@ -39,6 +40,10 @@ export interface DirectorInput {
   seed: string;
   /** Probes a human expert marked "needs work" (docs/EXPERTS.md). */
   expertFlaggedProbes?: readonly string[];
+  /** Case notes the applicant confirmed (src/lib/domain/notes.ts). */
+  notes?: readonly CaseNote[];
+  /** Kinds of document the applicant uploaded: their folder at the window. */
+  folder?: readonly string[];
 }
 
 export const REALISM_EVENTS = [
@@ -83,6 +88,13 @@ export const SessionPlanSchema = z.object({
   visaType: z.enum(["F1", "B1B2"]).optional(),
   events: z.array(z.enum(REALISM_EVENTS)).max(2),
   noveltyRate: z.number().min(0).max(1),
+  /** Confirmed case notes, snapshotted at planning time. */
+  notes: z
+    .array(z.object({ id: z.string(), text: z.string(), source: z.string(), onScreen: z.boolean() }))
+    .max(30)
+    .optional(),
+  /** Document kinds in the applicant's folder. */
+  folder: z.array(z.string()).max(20).optional(),
 });
 
 export type SessionPlan = z.infer<typeof SessionPlanSchema>;
@@ -204,6 +216,18 @@ export function planSession(input: DirectorInput): SessionPlan {
     };
   });
 
+  // A question only this applicant would get: one confirmed note from their own
+  // documents, not asked about in the last two sessions.
+  const notePick = pickNoteProbe(rng, input.notes ?? [], pastSessions, mode);
+  if (notePick) {
+    // Never the opener; if the plan is full, it replaces the last optional topic.
+    if (probes.length >= 5) {
+      const i = probes.map((p) => !p.critical && p.reason !== "weak_retest").lastIndexOf(true);
+      probes.splice(i >= 0 ? i : probes.length - 1, 1);
+    }
+    probes.splice(Math.min(probes.length, 1 + Math.floor(rng() * Math.max(1, probes.length - 1))), 0, notePick);
+  }
+
   const officer = sampleOfficer(rng, {
     readiness: mode === "dress_rehearsal" ? Math.max(input.readiness, 0.6) : input.readiness,
     recent: recent.map((s) => s.officer),
@@ -229,5 +253,32 @@ export function planSession(input: DirectorInput): SessionPlan {
     earlyDecisionAllowed: mode !== "practice" && rng() < 0.4,
     events,
     noveltyRate: probes.length ? novel / probes.length : 1,
+    notes: (input.notes ?? []).slice(0, 30).map((n) => ({ id: n.id, text: n.text, source: n.sourceKind, onScreen: isOnScreen(n.sourceKind) })),
+    folder: [...new Set(input.folder ?? [])].slice(0, 20),
   });
+}
+
+export const NOTE_PROBE_PREFIX = "note:";
+const NOTE_WEIGHT: Record<string, number> = { funding: 3, history: 3, employment: 2, ties: 2, family: 2, visit: 2, study: 1.5, travel: 1, other: 1 };
+
+function pickNoteProbe(rng: Rng, notes: readonly CaseNote[], past: readonly PastSession[], mode: SessionMode): PlannedProbe | null {
+  if (!notes.length || rng() > (mode === "practice" ? 0.5 : 0.75)) return null;
+  const recent = new Set(past.slice(0, 2).flatMap((s) => s.probeResults.map((r) => r.probeId)));
+  const fresh = notes.filter((n) => !recent.has(NOTE_PROBE_PREFIX + n.id));
+  const pool = fresh.length ? fresh : notes;
+  const total = pool.reduce((s, n) => s + (NOTE_WEIGHT[n.category] ?? 1), 0);
+  let r = rng() * total;
+  const note = pool.find((n) => (r -= NOTE_WEIGHT[n.category] ?? 1) <= 0) ?? pool[pool.length - 1];
+  const entry = isOnScreen(note.sourceKind)
+    ? `Ask about this, in your own words: ${note.text}`
+    : `Ask to see their ${documentLabel(note.sourceKind)}, call request_document, then ask about this in your own words: ${note.text}`;
+  return {
+    probeId: NOTE_PROBE_PREFIX + note.id,
+    critical: false,
+    entry,
+    followUpVague: ["Can you be more specific?"],
+    followUpContradiction: [],
+    mustInclude: ["a direct explanation with the specifics"],
+    reason: "case_flag",
+  };
 }

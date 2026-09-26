@@ -1,5 +1,8 @@
 import { z } from "zod";
 import { PriorRefusal, Sponsor, UsContact, VisaType } from "./case";
+import { ExtractedNote } from "./notes";
+
+const Money = z.object({ amount: z.number(), currency: z.string().max(8) });
 
 /**
  * What extraction may produce from one document: every field optional. The
@@ -44,6 +47,9 @@ export const ExtractedFacts = z.object({
       sponsors: z.array(Sponsor).max(5),
       liquidFundsUsd: z.number(),
       recentLargeDepositUsd: z.number(),
+      /** As printed (e.g. GHS). Converted to USD on the server, for the user to confirm. */
+      fundsAvailable: Money,
+      recentLargeDeposit: Money.extend({ date: z.string().max(40).optional() }),
     })
     .partial()
     .optional(),
@@ -67,6 +73,8 @@ export const ExtractedFacts = z.object({
     .optional(),
   usContacts: z.array(UsContact).max(10).optional(),
   appointment: z.object({ date: z.string().max(40), post: z.string().max(60) }).partial().optional(),
+  /** Facts specific to this applicant that the fields above can't hold. */
+  notes: z.array(ExtractedNote).max(12).optional(),
 });
 export type ExtractedFacts = z.infer<typeof ExtractedFacts>;
 

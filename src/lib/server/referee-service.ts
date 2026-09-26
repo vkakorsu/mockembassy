@@ -1,6 +1,8 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { CaseProfile } from "@/lib/domain/case";
 import type { SessionPlan } from "@/lib/domain/director";
+import { documentLabel, matchDocumentKind } from "@/lib/domain/notes";
 import { DECISION_LINES } from "@/lib/domain/officer-prompt";
 import {
   decide,
@@ -29,6 +31,7 @@ export type OfficerToolCall =
   | { name: "log_probe"; args: { probe_id: string; quality: TurnEvaluation["quality"]; answer_seconds?: number } }
   | { name: "log_inconsistency"; args: { probe_id?: string; field: string; said: string; on_file: string } }
   | { name: "log_document"; args: { document: string; provided: boolean } }
+  | { name: "request_document"; args: { document: string } }
   | { name: "end_interview"; args: { proposed_outcome: string } };
 
 export interface ToolResult {
@@ -50,7 +53,7 @@ function toState(plan: SessionPlan, stored: Partial<StoredState>): RefereeState 
 
 export async function applyToolCall(
   db: SupabaseClient,
-  session: { id: string; plan: SessionPlan; referee_state: Partial<StoredState> },
+  session: { id: string; case_id: string; profile_version: number; plan: SessionPlan; referee_state: Partial<StoredState> },
   call: OfficerToolCall,
   elapsedSec: number,
 ): Promise<ToolResult> {
@@ -92,6 +95,10 @@ export async function applyToolCall(
         officer_name: session.plan.officer.name,
         inconsistency: call.args,
       });
+      break;
+    }
+    case "request_document": {
+      result = { response: await documentView(db, session, call.args.document), speak: true, wrapUp: false };
       break;
     }
     case "log_document":
@@ -144,4 +151,57 @@ export function finalDecision(
     };
   }
   return decide(state);
+}
+
+/**
+ * What the officer sees when it looks at a folder document: the confirmed
+ * notes from that document, plus the matching confirmed profile facts. Never
+ * raw document text, and nothing the applicant didn't confirm.
+ */
+async function documentView(
+  db: SupabaseClient,
+  session: { case_id: string; profile_version: number; plan: SessionPlan },
+  requested: string,
+): Promise<Record<string, unknown>> {
+  const folder = session.plan.folder ?? [];
+  const kind = matchDocumentKind(String(requested ?? ""), folder);
+  if (!kind) {
+    return {
+      available: false,
+      instruction:
+        "The applicant didn't bring this document to practice with. Treat it as handed over and unremarkable, say 'Okay', and continue. Don't penalise them for it.",
+    };
+  }
+  const { data } = await db
+    .from("case_profiles")
+    .select("profile")
+    .eq("case_id", session.case_id)
+    .eq("version", session.profile_version)
+    .maybeSingle();
+  const parsed = CaseProfile.safeParse(data?.profile);
+  const p = parsed.success ? parsed.data : null;
+  const facts: Record<string, unknown> =
+    !p
+      ? {}
+      : kind === "bank_statement"
+        ? { availableFundsUsd: p.funding.liquidFundsUsd, recentLargeDepositUsd: p.funding.recentLargeDepositUsd }
+        : kind === "sponsor_letter"
+          ? { sponsors: p.funding.sponsors }
+          : kind === "employment_letter" || kind === "business_registration"
+            ? { employer: p.ties.employer, role: p.ties.role, yearsEmployed: p.ties.yearsEmployed, ownsBusiness: p.ties.ownsBusiness }
+            : kind === "i20" || kind === "admission_letter"
+              ? { study: { ...p.study, postStudyPlan: undefined } }
+              : kind === "invitation_letter"
+                ? { visit: p.visit }
+                : kind === "property"
+                  ? { ownsProperty: p.ties.ownsProperty }
+                  : {};
+  const shows = (session.plan.notes ?? []).filter((n) => n.source === kind).map((n) => n.text);
+  return {
+    available: true,
+    document: documentLabel(kind),
+    facts,
+    shows,
+    instruction: "React as an officer glancing at it: one short question about what stands out, or 'Okay' and move on.",
+  };
 }
