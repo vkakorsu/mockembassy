@@ -3,7 +3,7 @@ import { applyToolCall, type OfficerToolCall } from "@/lib/server/referee-servic
 import { errorResponse, HttpError, ownedSession } from "@/lib/server/session-access";
 
 const Body = z.object({
-  name: z.enum(["log_probe", "log_inconsistency", "log_document", "request_document", "end_interview"]),
+  name: z.enum(["log_probe", "log_inconsistency", "log_document", "request_document", "scan_fingerprints", "end_interview"]),
   args: z.record(z.string(), z.unknown()),
 });
 

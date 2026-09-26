@@ -319,6 +319,23 @@ export const PROBES: readonly Probe[] = [
     mustInclude: () => ["a material change since the refusal"],
   },
   {
+    // Since interview waivers ended (Sept 2025), returning visitors interview
+    // again, and whether they left on time last visit is the first thing checked.
+    id: "common.history.us_visits",
+    visaTypes: both,
+    category: "history",
+    critical: true,
+    relevance: (c) => (c.history.priorUsVisits > 0 ? 1 : 0),
+    grounding: ["history.priorUsVisits"],
+    entry: [
+      "You've been to the US before. When was your last trip, and how long did you stay?",
+      "Tell me about your last visit to the US.",
+    ],
+    followUpVague: ["What did you do there?", "When exactly did you come back?"],
+    followUpContradiction: ["Our records show a different stay."],
+    mustInclude: () => ["when, how long, and that they left on time"],
+  },
+  {
     id: "common.history.travel",
     visaTypes: both,
     category: "history",

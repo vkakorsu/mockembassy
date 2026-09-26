@@ -58,7 +58,7 @@ function fromBase64(b64: string) {
 const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
 /** Tools the officer waits on (see BLOCKING_TOOLS in src/lib/server/gemini.ts). */
-const BLOCKING_TOOLS = new Set(["end_interview", "request_document"]);
+const BLOCKING_TOOLS = new Set(["end_interview", "request_document", "scan_fingerprints"]);
 /** 100 ms chunks: stop recording after 8 minutes. */
 const MAX_RECORDING_CHUNKS = 4800;
 /** Mic RMS above this counts as speech (after browser noise suppression). */
@@ -76,7 +76,7 @@ export function LiveRoom(props: Props) {
   const [officerLevel, setOfficerLevel] = useState(0);
   const [micLevel, setMicLevel] = useState(0);
   /** A document the officer is waiting for: shown as a button, like passing it through the slot. */
-  const [handover, setHandover] = useState<{ label: string; canDecline: boolean } | null>(null);
+  const [handover, setHandover] = useState<{ prompt: React.ReactNode; action: string; canDecline: boolean } | null>(null);
   const handoverRef = useRef<((given: boolean) => void) | null>(null);
   const openingOfferedRef = useRef(false);
   const [status, setStatus] = useState("");
@@ -150,8 +150,10 @@ export function LiveRoom(props: Props) {
       answerSinceRef.current = null;
       const silence = behaviourRef.current?.typingSilence;
       if (silence && silence.turn === officerTurnRef.current) {
-        // The officer looks down and types before speaking.
+        // The officer looks down and types before speaking. Say so, or it reads as lag.
         p.next = Math.max(p.next, p.ctx.currentTime + silence.seconds);
+        setStatus("The officer is typing…");
+        window.setTimeout(() => setStatus(""), silence.seconds * 1000);
       }
     }
     const at = Math.max(p.ctx.currentTime + 0.02, p.next);
@@ -181,8 +183,20 @@ export function LiveRoom(props: Props) {
 
   /** Shows the handover button; resolves when it's pressed, the applicant speaks, or after a timeout. */
   function askHandover(label: string, canDecline: boolean, timeoutMs: number): Promise<boolean> {
+    return askAction(
+      <>
+        The officer is waiting for your <strong>{label}</strong>.
+      </>,
+      "Pass it through the slot ▸",
+      canDecline,
+      timeoutMs,
+    );
+  }
+
+  /** A physical step at the window, as a button: resolves when pressed, declined, or after a timeout. */
+  function askAction(prompt: React.ReactNode, action: string, canDecline: boolean, timeoutMs: number): Promise<boolean> {
     handoverRef.current?.(true);
-    setHandover({ label, canDecline });
+    setHandover({ prompt, action, canDecline });
     return new Promise((resolve) => {
       const timer = window.setTimeout(() => done(true), timeoutMs);
       function done(given: boolean) {
@@ -203,7 +217,7 @@ export function LiveRoom(props: Props) {
     void askHandover(label, false, HANDOVER_MS).then((pressed) => {
       if (pressed && lastVoiceAtRef.current <= lastOfficerAtRef.current) {
         nudgedRef.current = true;
-        referee(`The applicant has passed the ${label} through the slot. Begin your questions.`);
+        referee(`The applicant has passed the ${label} through the slot. Continue.`);
       }
     });
   }
@@ -246,6 +260,18 @@ export function LiveRoom(props: Props) {
         continue;
       }
       try {
+        if (call.name === "scan_fingerprints") {
+          for (const hand of ["left four fingers", "right four fingers", "both thumbs"]) {
+            await askAction(
+              <>
+                Officer: &ldquo;Put your <strong>{hand}</strong> on the scanner.&rdquo;
+              </>,
+              "Place them on the scanner ▸",
+              false,
+              7000,
+            );
+          }
+        }
         if (call.name === "request_document") {
           const label = String(call.args?.document ?? "document");
           const given = await askHandover(label, true, 12_000);
@@ -506,15 +532,13 @@ export function LiveRoom(props: Props) {
 
           {phase === "live" && handover && (
             <div className="relative mx-5 mb-4 flex flex-wrap items-center justify-between gap-3 border border-ink bg-paper px-4 py-3 sm:mx-8">
-              <span className="text-sm">
-                The officer is waiting for your <strong>{handover.label}</strong>.
-              </span>
+              <span className="text-sm">{handover.prompt}</span>
               <span className="flex gap-2">
                 <button
                   onClick={() => handoverRef.current?.(true)}
                   className="rounded-[3px] bg-ink px-4 py-2 text-sm font-semibold text-on-ink hover:bg-stamp"
                 >
-                  Pass it through the slot ▸
+                  {handover.action}
                 </button>
                 {handover.canDecline && (
                   <button onClick={() => handoverRef.current?.(false)} className="text-sm underline underline-offset-4">

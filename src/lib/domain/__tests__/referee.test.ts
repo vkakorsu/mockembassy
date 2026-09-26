@@ -73,3 +73,19 @@ describe("referee", () => {
     expect(decide(s).outcome).toBe("refused_214b");
   });
 });
+
+describe("early refusals", () => {
+  it("ends after a key contradiction or two weak key answers, except in practice", () => {
+    const plan = planSession({ profile: amaF1, pastSessions: [], readiness: 0.3, mode: "real", seed: "ref" });
+    const critical = plan.probes.filter((p) => p.critical).map((p) => p.probeId);
+    const base = createRefereeState(plan);
+    expect(shouldEnd(recordTurn(base, { probeId: critical[0], quality: "contradiction", durationSec: 5 }), 10)).toBe(true);
+    if (critical.length >= 2) {
+      let s = base;
+      for (const id of critical.slice(0, 2)) s = recordTurn(s, { probeId: id, quality: "weak", durationSec: 5 });
+      expect(shouldEnd(s, 10)).toBe(true);
+    }
+    const practice = createRefereeState({ ...plan, mode: "practice" });
+    expect(shouldEnd(recordTurn(practice, { probeId: critical[0], quality: "contradiction", durationSec: 5 }), 10)).toBe(false);
+  });
+});

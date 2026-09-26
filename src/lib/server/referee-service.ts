@@ -32,6 +32,7 @@ export type OfficerToolCall =
   | { name: "log_inconsistency"; args: { probe_id?: string; field: string; said: string; on_file: string } }
   | { name: "log_document"; args: { document: string; provided: boolean } }
   | { name: "request_document"; args: { document: string } }
+  | { name: "scan_fingerprints"; args: Record<string, never> }
   | { name: "end_interview"; args: { proposed_outcome: string } };
 
 export interface ToolResult {
@@ -101,6 +102,10 @@ export async function applyToolCall(
       result = { response: await documentView(db, session, call.args.document), speak: true, wrapUp: false };
       break;
     }
+    case "scan_fingerprints":
+      // The ten-print scan at the window doubles as the applicant's certification (9 FAM 403.5).
+      result = { response: { verified: true, instruction: "Fingerprints match. Begin your questions." }, speak: true, wrapUp: false };
+      break;
     case "log_document":
       state = { ...state, documentRequested: true, documentProvided: Boolean(call.args.provided) };
       break;

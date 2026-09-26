@@ -95,6 +95,8 @@ export const SessionPlanSchema = z.object({
     .optional(),
   /** Document kinds in the applicant's folder. */
   folder: z.array(z.string()).max(20).optional(),
+  /** The officer verifies fingerprints at the window before questions (a common post procedure). */
+  fingerprintsAtWindow: z.boolean().optional(),
 });
 
 export type SessionPlan = z.infer<typeof SessionPlanSchema>;
@@ -255,6 +257,8 @@ export function planSession(input: DirectorInput): SessionPlan {
     noveltyRate: probes.length ? novel / probes.length : 1,
     notes: (input.notes ?? []).slice(0, 30).map((n) => ({ id: n.id, text: n.text, source: n.sourceKind, onScreen: isOnScreen(n.sourceKind) })),
     folder: [...new Set(input.folder ?? [])].slice(0, 20),
+    // Drawn last so it doesn't change the rest of a seeded plan.
+    fingerprintsAtWindow: mode !== "practice" && rng() < 0.5,
   });
 }
 

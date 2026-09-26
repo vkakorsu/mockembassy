@@ -55,6 +55,13 @@ function isCritical(state: RefereeState, probeId: string): boolean {
 
 export function shouldEnd(state: RefereeState, elapsedSec: number): boolean {
   if (elapsedSec >= state.plan.targetDurationSec) return true;
+  // Officers refuse fast: a key contradiction, or two weak key answers, and
+  // they've heard enough (practice mode lets the applicant keep going).
+  if (state.plan.mode !== "practice") {
+    const judged = finalJudgements(state).filter((t) => isCritical(state, t.probeId));
+    if (judged.some((t) => t.quality === "contradiction" || t.inconsistency)) return true;
+    if (judged.filter((t) => t.quality === "weak").length >= 2) return true;
+  }
   const answered = new Set(state.turns.map((t) => t.probeId));
   if (state.plan.probes.every((p) => answered.has(p.probeId))) return true;
   if (state.plan.earlyDecisionAllowed) {

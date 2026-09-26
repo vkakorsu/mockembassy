@@ -204,7 +204,7 @@ export async function gradeDebrief(input: {
 
 /* ------------------------------------------------------------------ live */
 
-const BLOCKING_TOOLS = new Set(["end_interview", "request_document"]);
+const BLOCKING_TOOLS = new Set(["end_interview", "request_document", "scan_fingerprints"]);
 
 /** Names from the case that speech recognition would otherwise mangle. */
 export function caseVocabulary(c: CaseProfile): string[] {

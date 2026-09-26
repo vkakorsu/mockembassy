@@ -84,3 +84,45 @@ A real applicant passes the passport (and I-20) through the slot. When the offic
 - **Second transcript**: after the session each answer is cut from the recording (−0.4 s/+0.8 s) and transcribed again by Flash, verbatim with fillers, with the officer's question and the case's names as context (`turns.user_transcript_asr`). Grading uses the user's correction, then this, then the live transcript.
 - **Hear yourself**: every answer on the debrief has a play button (signed URL, seeks to the answer). Delivery notes from the audio: pace (words per speaking minute), pauses of 1.5 s or more, voice dropping at the end, fillers, length. All deterministic.
 - **Drills**: one question, a fresh officer, a phrasing not heard recently, at most one follow-up, no verdict. Started from "Practise this one" on any graded answer, "Drill it again" on a drill debrief, or the case page's "Answers to fix" (weak, then improving topics). Drills don't use up mocks or the daily mock limit: 3 free per account, 30 a day with a pass. Their judgements count towards readiness like any other officer's.
+
+## 8. Realism audit (26 Sep 2026)
+
+Research refresh, and how the interview compares, dimension by dimension. "Verified" means checked in a live session; "Built" means implemented but not yet observed live.
+
+### What changed in the world
+
+| Fact | Source | Effect on Okwan |
+|---|---|---|
+| Ghana's July 2025 cut to single-entry, 3-month visas was reversed on 26 Sep 2025: B1/B2 up to 5 years, F-1 up to 4 years, multiple entry. | [Citi Newsroom](https://www.citinewsroom.com/2025/09/us-reverses-visa-restrictions-on-ghana-restores-five-year-multiple-entry/), [Nairametrics](https://nairametrics.com/2025/09/27/visa-restriction-lifted-u-s-restores-ghana-visa-validity-to-5-years/) | Docs already correct (PLAN.md). |
+| Interview waivers ended for most applicants on 2 Sep 2025; renewals interview in person again. | [Ogletree](https://ogletree.com/insights-resources/blog-posts/interview-waiver-no-longer-available-for-most-nonimmigrant-visa-applicants-starting-september-2-2025/), [Boundless](https://www.boundless.com/blog/nonimmigrant-visa-interview-waiver-changes-2025) | More returning visitors. **Added** a key question on past US visits and leaving on time. |
+| F, M and J applicants must set social media to public; officers may ask about what they find. | [Shorelight](https://shorelight.com/student-stories/us-visa-social-media-vetting), [US Mission Mexico](https://mx.usembassy.gov/student-visa-social-media-vetting/) | Case Scan flags it; officer questions about posts are rare, so not simulated. |
+| Ghana F-1 refusal 81% (2025, up from 72%); B1/B2 adjusted refusal 64.3% (FY25). | [Newsweek](https://www.newsweek.com/us-student-visa-refusals-hit-record-high-11818845), [State Dept FY25](https://travel.state.gov/content/dam/visas/Statistics/Non-Immigrant-Statistics/RefusalRates/FY25.pdf) | Tougher bar for sceptical officers (§5) and fast refusals (below). |
+| $250 visa integrity fee is law but, as of March 2026, not yet collected; charged at issuance only. | [Ellis](https://www.ellis.com/resources/visa-integrity-fee), [BU ISSO](https://www.bu.edu/isso/2026/05/19/visa-integrity-fee/) | Nothing in the interview; revisit the checklist when collection starts. |
+| Ten-print scan is taken "immediately preceding the visa interview" and the applicant attests under penalty of perjury. | [US Embassy Thailand, interview procedures](https://th.usembassy.gov/nonimmigrant-visa-interview-procedures/), 9 FAM 403.5 | **Added**: in about half of real sessions the officer verifies fingerprints at the window (left four, right four, thumbs) before questions. Accra's exact choreography is still to confirm. |
+| Most interviews last 3–5 minutes in total; the officer has read the DS-160 and forms an impression in the first seconds; long answers read as rehearsed. | [VisaMet](https://visamet.com/guides/us-visa-interview-questions-2026-guide), former-officer accounts | Matches: variable 60–240 s, first-minute grading, cut-ins. **Added** fast refusals. |
+
+### Scorecard
+
+| Dimension | Status | Notes |
+|---|---|---|
+| Opening: greeting, passport (and I-20) through the slot | Verified | Handover button; silent handover assumed after 8 s. |
+| Fingerprint verification at the window | Built | Blocking `scan_fingerprints`; three scanner presses. Not in the free mock, practice or drills. |
+| Officer reads the file, not the folder | Verified | On-screen notes vs folder documents requested with `request_document`. |
+| Question selection tailored to the case and history | Verified | Director + notes; novelty against the last 3 sessions. |
+| Follow-up depth | Built | Now scales with scepticism: 1, 2 or 3 follow-ups on a vague answer (was always 1). |
+| Fast decisions | Built | A key contradiction or two weak key answers now end the interview (not in practice). Early approvals already existed. |
+| Reply timing | Verified | Median well under 1 s after the fix; "The officer is typing…" shown during deliberate typing pauses. |
+| Interruptions | Built, unverified live | Client-timed cut-ins for impatient officers. Needs a live check. |
+| Decision lines | Verified | 214(b), 221(g), approval wording. |
+| Hearing the applicant | Verified | Live transcript for the officer; careful second transcript for grading. Live mishearing still affects the officer's follow-ups. |
+| Judging answers | Partly verified | Officer rubric + Referee rules + independent grader agree on the sessions seen; no human calibration yet. |
+| Sound of the room | Partial | "Through the glass" filter only. |
+
+### Still not perfect (in priority order)
+
+1. **Accra ground truth.** Nobody has confirmed the Accra choreography (where fingerprints happen, whether I-20s are handed over or only checked on screen, glass and microphone, how the decision is delivered) or the question mix. Phase 0: 20–30 recent applicants, then a blind "real or Okwan?" transcript test. Until then these are well-sourced defaults, not facts.
+2. **Automated officer regression tests.** Every live session has found a new model quirk. A nightly scripted-applicant run against the real Live model (weak answers, "What?", rambling, silence, documents) should check: one question per turn, no spoken tool calls, waits for handovers, fast refusal on contradictions, reply latency, and the same answers giving the same verdict.
+3. **Human calibration of judgements.** 100–300 answers scored by experts, compared with the officer's `log_probe` and the grader.
+4. **Live mishearing.** The officer still hears the fast live transcript. If mishearing shows up in follow-ups, add case names as vocabulary to the live session (done for input transcription) and consider a push-to-confirm on names and numbers.
+5. **Room sound.** Low embassy ambience (other windows, number calls) would add pressure, but can trip voice activity detection through the mic. Try it behind a setting, with echo cancellation checked on low-end Android phones, before making it the default.
+6. **Model drift.** `gemini-3.8-live` can change under us; the health page and the regression run are the guardrails.

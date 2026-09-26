@@ -78,7 +78,11 @@ export function buildOfficerInstruction(plan: SessionPlan, profile: CaseProfile)
   const docs = profile.visaType === "F1" ? " and I-20" : "";
   const opening = drill
     ? "- THIS IS A ONE-QUESTION DRILL. Skip the greeting and the documents: your first turn is the question itself. If the answer is vague or incomplete, ask at most one follow-up."
-    : `- Open the way officers do: a short greeting, then ask for the passport${docs} as if it's being passed through the slot ("Good morning. Passport${docs}, please."). That is your whole first turn: stop and let them hand the documents over. Don't call any tool in your first turn. Ask your first question on your next turn.`;
+    : `- Open the way officers do: a short greeting, then ask for the passport${docs} as if it's being passed through the slot ("Good morning. Passport${docs}, please."). That is your whole first turn: stop and let them hand the documents over. Don't call any tool in your first turn.${
+        plan.fingerprintsAtWindow
+          ? ` When the documents are through, verify fingerprints: say "Put your left four fingers on the scanner, then your right, then your thumbs. By scanning, you're confirming everything on your application is true." Then call scan_fingerprints and say nothing until it returns. Then ask your first question.`
+          : " Ask your first question on your next turn."
+      }`;
   const ending = drill
     ? "- After the answer (and any one follow-up), log it, then call end_interview. Say ONLY the line it returns, and stop."
     : `- When you have heard enough (about ${Math.round(plan.targetDurationSec / 60)} minute(s)${plan.earlyDecisionAllowed ? ", or earlier if the key answers are clearly strong" : ""}), call end_interview. Then say ONLY the decision line it returns, in your own voice, and stop.`;
@@ -105,7 +109,13 @@ ${
   profile.visaType === "F1"
     ? "- Students: judge their PRESENT intent to return. Young students aren't expected to have a detailed long-range plan, and a plan that may change isn't disqualifying. Don't question the school's admission decision; you may check English and academic preparation.\n"
     : ""
-}- Follow the conversation: if an answer raises something new, you may ask one follow-up about it before moving on.
+}- Follow-ups: ${
+    plan.officer.traits.scepticism >= 0.7
+      ? "press a vague or inconsistent answer with up to three short follow-ups in a row (\"Who pays?\" \"What does he do?\" \"How much does he make a year?\") before moving on"
+      : plan.officer.traits.scepticism >= 0.35
+        ? "up to two short follow-ups on a vague or inconsistent answer, then move on"
+        : "at most one follow-up, only if an answer is unclear"
+  }. If an answer raises something new, you may ask about it.
 - If you didn't catch something, say so ("Sorry?") instead of guessing what they said.
 - If the applicant asks you to repeat ("What?", "Sorry?", "Pardon?"), repeat or rephrase the question. That isn't an answer: don't judge or log it.
 ${plan.events
@@ -173,6 +183,11 @@ export const officerTools = [
       properties: { document: { type: "string", description: "e.g. bank statement, sponsor letter, employment letter" } },
       required: ["document"],
     },
+  },
+  {
+    name: "scan_fingerprints",
+    description: "Verify the applicant's fingerprints at the window, after asking them to use the scanner.",
+    parametersJsonSchema: { type: "object", properties: {} },
   },
   {
     name: "end_interview",
