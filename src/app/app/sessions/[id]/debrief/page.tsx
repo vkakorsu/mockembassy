@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { correctTranscript, rateSession, retryDebrief, startDrill } from "@/app/app/actions";
+import { correctTranscript, rateSession, retryDebrief, startDrill, startSession } from "@/app/app/actions";
 import { AnswerAudioProvider, PlayAnswer } from "@/components/app/answer-audio";
 import { AutoRefresh } from "@/components/app/auto-refresh";
 import { BackLink, Button, Card, PageTitle } from "@/components/app/ui";
@@ -8,6 +8,8 @@ import { deliveryNotes, type DeliveryMetrics, type VoiceSummary } from "@/lib/do
 import { NOTE_PROBE_PREFIX, type SessionPlan } from "@/lib/domain/director";
 import { documentLabel } from "@/lib/domain/notes";
 import { requireUser } from "@/lib/server/auth";
+import { caseDrillEntitlement, caseEntitlement, getCase } from "@/lib/server/repo";
+import { stripToolText } from "@/lib/domain/transcript";
 import { TESTING_LABELS } from "@/lib/labels";
 
 const OUTCOME = {
@@ -89,6 +91,17 @@ export default async function DebriefPage(props: PageProps<"/app/sessions/[id]/d
     audioSrc = signed?.signedUrl ?? null;
   }
   const seconds = s.started_at && s.ended_at ? Math.round((+new Date(s.ended_at) - +new Date(s.started_at)) / 1000) : null;
+
+  // What to do next depends on what this person can still use.
+  const caseRow = await getCase(supabase, s.case_id);
+  const [ent, drillEnt] = caseRow
+    ? await Promise.all([caseEntitlement(supabase, caseRow), caseDrillEntitlement(supabase, caseRow)])
+    : [null, null];
+  const avg = (sc: TurnScores) => (sc.llm ? (sc.llm.directness + sc.llm.specificity + sc.llm.consistency + sc.llm.conciseness) / 4 : 99);
+  const weakest = shown
+    .map((t) => ({ t, sc: (t.scores ?? {}) as TurnScores }))
+    .filter(({ sc }) => sc.llm && sc.probe_id && planned.has(sc.probe_id))
+    .sort((a, b) => avg(a.sc) - avg(b.sc))[0];
 
   return (
     <>
@@ -181,9 +194,39 @@ export default async function DebriefPage(props: PageProps<"/app/sessions/[id]/d
               ))}
             </div>
           </Card>
-          <Link href={`/app/cases/${s.case_id}`} className="inline-block rounded-[3px] bg-ink px-5 py-2.5 text-sm font-semibold text-on-ink hover:bg-stamp">
-            Next officer →
-          </Link>
+          {!grading && !drill && (
+            <Card className="border-2 border-ink">
+              <p className="label text-stamp">What next</p>
+              {weakest && drillEnt && drillEnt.kind !== "none" ? (
+                <>
+                  <h2 className="font-display mt-1 text-2xl uppercase">Fix your weakest answer</h2>
+                  <p className="mt-1 text-sm text-muted">&ldquo;{stripToolText(weakest.t.officer_text)}&rdquo; One question, a new officer, graded straight away.</p>
+                  <form action={startDrill.bind(null, s.case_id, weakest.sc.probe_id!)} className="mt-4">
+                    <Button>{drillEnt.kind === "free" ? "Free drill →" : "Drill it →"}</Button>
+                  </form>
+                </>
+              ) : ent?.kind === "full" ? (
+                <>
+                  <h2 className="font-display mt-1 text-2xl uppercase">Face the next officer</h2>
+                  <p className="mt-1 text-sm text-muted">A different officer, different questions. {ent.reason}.</p>
+                  <form action={startSession.bind(null, s.case_id, "real")} className="mt-4">
+                    <Button>Start interview →</Button>
+                  </form>
+                </>
+              ) : (
+                <>
+                  <h2 className="font-display mt-1 text-2xl uppercase">Keep practising</h2>
+                  <p className="mt-1 text-sm text-muted">You&rsquo;ve seen what to fix. A pack gives you more interviews and drills with new officers.</p>
+                  <Link href={`/app/cases/${s.case_id}/pass`} className="mt-4 inline-block rounded-[3px] bg-ink px-5 py-2.5 text-sm font-semibold text-on-ink hover:bg-stamp">
+                    Get interviews →
+                  </Link>
+                </>
+              )}
+              <Link href={`/app/cases/${s.case_id}`} className="mt-4 block text-sm underline underline-offset-4">
+                Back to your case
+              </Link>
+            </Card>
+          )}
         </div>
 
         <Answers src={audioSrc}>

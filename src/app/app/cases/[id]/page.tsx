@@ -4,6 +4,8 @@ import { reportOutcome, setInterviewDate, setPacked, startDrill, startSession } 
 import { Button, Card, Field, inputCls, Notice } from "@/components/app/ui";
 import { daysUntil } from "@/lib/countdown";
 import { CaseHeader } from "@/components/app/case-header";
+import { NextStepCard } from "@/components/app/next-step-card";
+import { nextStep } from "@/lib/next-step";
 import { PackingList } from "@/components/app/packing-list";
 import { MODE_INFO } from "@/lib/modes";
 import { scanCase } from "@/lib/domain/case-scan";
@@ -11,7 +13,7 @@ import { whatToBring } from "@/lib/domain/checklist";
 import { probeStatus } from "@/lib/domain/director";
 import { fillTemplate, isFillable, probesFor } from "@/lib/domain/probes";
 import { requireUser } from "@/lib/server/auth";
-import { caseEntitlement, getCase, latestProfile, pastSessions } from "@/lib/server/repo";
+import { caseDrillEntitlement, caseEntitlement, getCase, latestProfile, pastSessions } from "@/lib/server/repo";
 import { readiness, readinessTopics } from "@/lib/domain/readiness";
 import { formatDate, modeLabel } from "@/lib/labels";
 
@@ -37,10 +39,11 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
   const caseRow = await getCase(supabase, id);
   if (!caseRow) notFound();
 
-  const [current, history, ent, { data: sessions }, { data: docs }] = await Promise.all([
+  const [current, history, ent, drillEnt, { data: sessions }, { data: docs }, { count: pendingNotes }, { data: outcome }] = await Promise.all([
     latestProfile(supabase, id),
     pastSessions(supabase, id),
     caseEntitlement(supabase, caseRow),
+    caseDrillEntitlement(supabase, caseRow),
     // Sessions that never started (a mode clicked, then left) aren't shown or counted.
     supabase
       .from("sessions")
@@ -49,7 +52,9 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
       .not("started_at", "is", null)
       .order("created_at", { ascending: false })
       .limit(20),
-    supabase.from("documents").select("kind").eq("case_id", id),
+    supabase.from("documents").select("kind, extraction_status").eq("case_id", id),
+    supabase.from("case_notes").select("id", { count: "exact", head: true }).eq("case_id", id).eq("status", "pending"),
+    supabase.from("outcomes").select("result").eq("case_id", id).maybeSingle(),
   ]);
 
   const flags = current ? scanCase(current.profile) : [];
@@ -73,6 +78,22 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
   const interview = caseRow.interview_at ? new Date(caseRow.interview_at) : null;
   const daysToGo = caseRow.interview_at ? daysUntil(caseRow.interview_at) : null;
   const subtitle = current?.profile.study?.school ?? current?.profile.visit?.purpose ?? null;
+  const bring = current ? whatToBring(current.profile) : [];
+  const packed = new Set(caseRow.checklist_packed ?? []);
+  const weak = toFix.find((t) => t.status === "weak");
+  const step = nextStep({
+    caseId: id,
+    documents: (docs ?? []).map((d) => ({ status: d.extraction_status as "pending" | "done" | "failed" })),
+    factsConfirmed: Boolean(current),
+    pendingNotes: pendingNotes ?? 0,
+    sessions: (sessions ?? []).map((x) => ({ mode: x.mode, ended: Boolean(x.ended_at) })),
+    canInterview: ent.kind,
+    canDrill: drillEnt.kind,
+    weakest: weak ? { probeId: weak.id, question: weak.question } : null,
+    daysToInterview: daysToGo,
+    requiredStillToPack: bring.filter((b) => b.group === "Required" && !packed.has(b.id)).length,
+    outcomeReported: Boolean(outcome),
+  });
   const interviewPassed = interview ? hasPassed(interview) : false;
 
   return (
@@ -90,6 +111,7 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
         days={daysToGo}
         setDate={setInterviewDate.bind(null, id)}
       />
+      <NextStepCard caseId={id} step={step} />
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
         <div className="space-y-6">
@@ -218,10 +240,12 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
         <div className="space-y-6">
           {current && (
             <Card>
-              <h2 className="font-display text-2xl uppercase">What to bring</h2>
+              <h2 id="bring" className="scroll-mt-24 font-display text-2xl uppercase">
+                What to bring
+              </h2>
               <p className="mt-1 text-sm text-muted">Built from your confirmed facts. Tick each original as it goes into your folder.</p>
               <PackingList
-                items={whatToBring(current.profile)}
+                items={bring}
                 uploaded={(docs ?? []).map((d) => d.kind as string)}
                 packed={caseRow.checklist_packed ?? []}
                 setPacked={setPacked.bind(null, id)}
@@ -231,7 +255,9 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
 
           {interviewPassed && (
             <Card>
-              <h2 className="font-display text-2xl uppercase">How did it go?</h2>
+              <h2 id="outcome" className="scroll-mt-24 font-display text-2xl uppercase">
+                How did it go?
+              </h2>
               <form action={reportOutcome.bind(null, id)} className="mt-4 grid gap-3">
                 <Field label="Result">
                   <select name="result" className={inputCls}>

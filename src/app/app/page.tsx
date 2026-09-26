@@ -1,17 +1,21 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { countdownLabel, daysUntil } from "@/lib/countdown";
 import { NewCaseForm } from "@/components/app/new-case-form";
 import { Card, Notice, PageTitle } from "@/components/app/ui";
 import { requireUser } from "@/lib/server/auth";
 
 export default async function Dashboard(props: PageProps<"/app">) {
-  const { notice } = await props.searchParams;
+  const { notice, all } = await props.searchParams;
   const { supabase } = await requireUser();
   const { data: cases } = await supabase
     .from("cases")
     .select("id, visa_type, applicant_name, interview_at, sessions(count)")
     .not("sessions.started_at", "is", null) // count only sessions that started
     .order("created_at", { ascending: false });
+
+  // Most accounts have one applicant: go straight to it (?all shows the list and the new-case form).
+  if ((cases ?? []).length === 1 && all === undefined && notice === undefined) redirect(`/app/cases/${cases![0].id}`);
 
   return (
     <>

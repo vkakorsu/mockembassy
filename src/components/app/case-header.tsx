@@ -45,6 +45,9 @@ export function CaseHeader({
               Documents <span className="font-normal text-muted">· {docCount}</span>
             </Link>
             <span className="text-muted">{factsVersion ? `Facts confirmed (version ${factsVersion})` : "Not confirmed yet"}</span>
+            <Link href="/app?all" className="text-muted underline underline-offset-4 hover:text-fg">
+              All applicants
+            </Link>
           </div>
         </div>
         <div className="p-6 sm:p-8">
