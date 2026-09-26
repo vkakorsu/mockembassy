@@ -5,7 +5,7 @@ The app runs without any keys. Each feature shows a "not configured" state until
 ## 1. Supabase
 
 **Status (26 Sep 2026):**
-- Project **`okwan`** (ref `itvgkkwsxyobkwkrrrwg`, eu-west-1) has all four migrations applied. The security advisors are clean, apart from two intentional notes: `waitlist` and `asked_questions` are server-only.
+- Project **`okwan`** (ref `itvgkkwsxyobkwkrrrwg`, eu-west-1) has all six migrations applied, and an admin invite is set for the owner's email. The security advisors are clean apart from intentional notes: `waitlist`, `asked_questions`, `admin_audit_log` and `admin_invites` are server-only.
 - **Remaining steps:** set the environment variables in Vercel (step 1) and enable Phone auth (step 3). Step 2 is already done for this project.
 
 
