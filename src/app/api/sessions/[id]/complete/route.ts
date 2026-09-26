@@ -21,6 +21,9 @@ const Body = z.object({
   recordingPath: z.string().max(300).nullable(),
 });
 
+// Transcribing each answer again from the recording, then grading twice, runs after the response.
+export const maxDuration = 300;
+
 /** Stores the transcript, finalises the outcome, and grades the debrief in the background. */
 export async function POST(req: Request, ctx: RouteContext<"/api/sessions/[id]/complete">) {
   try {
@@ -44,7 +47,10 @@ export async function POST(req: Request, ctx: RouteContext<"/api/sessions/[id]/c
       );
     }
     const elapsedSec = session.started_at ? (Date.now() - new Date(session.started_at).getTime()) / 1000 : 0;
-    const decision = finalDecision(session.plan, session.referee_state, elapsedSec);
+    const decision =
+      session.plan.mode === "drill"
+        ? { outcome: null, reasons: [] as string[] }
+        : finalDecision(session.plan, session.referee_state, elapsedSec);
     await admin
       .from("sessions")
       .update({

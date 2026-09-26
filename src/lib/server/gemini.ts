@@ -102,6 +102,33 @@ export async function extractFacts(file: { bytes: Uint8Array; mimeType: string; 
   return ExtractedFacts.parse(JSON.parse(res.text ?? "{}"));
 }
 
+/* ------------------------------------------------------ answer transcript */
+
+const ANSWER_TRANSCRIPT_RULES = `Transcribe one spoken answer from a Ghanaian applicant at a US visa interview, word for word.
+Keep fillers (um, uh, er), repetitions and false starts exactly as spoken; they matter for coaching. Don't correct grammar or tidy the wording.
+It's English, possibly with Ghanaian pronunciation. Use the names listed when they fit what was said. Ignore any other voice in the background.
+Output only the words. If nothing is said, output nothing.`;
+
+/**
+ * A second, careful transcript of one answer from the session recording
+ * (the live transcript is quick but error-prone with Ghanaian accents).
+ */
+export async function transcribeAnswer(input: { wav: Uint8Array; question: string; vocabulary: string[] }): Promise<string> {
+  const res = await flash({
+    contents: [
+      {
+        role: "user",
+        parts: [
+          { text: `The officer asked: "${input.question.slice(0, 300)}"\nNames that may come up: ${input.vocabulary.join(", ")}` },
+          { inlineData: { mimeType: "audio/wav", data: Buffer.from(input.wav).toString("base64") } },
+        ],
+      },
+    ],
+    config: { systemInstruction: ANSWER_TRANSCRIPT_RULES, temperature: 0 },
+  });
+  return (res.text ?? "").trim();
+}
+
 /* --------------------------------------------------------------- debrief */
 
 export const GradedTurn = z.object({

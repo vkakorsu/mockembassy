@@ -20,6 +20,7 @@ export default async function SessionPage(props: PageProps<"/app/sessions/[id]">
         officerName={plan.officer.name}
         targetDurationSec={plan.targetDurationSec}
         isFree={session.is_free}
+        drill={plan.mode === "drill"}
         supabaseUrl={env.supabaseUrl!}
         publishableKey={env.supabasePublishableKey!}
       />

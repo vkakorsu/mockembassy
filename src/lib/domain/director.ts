@@ -16,7 +16,7 @@ import { maxSimilarity } from "./similarity";
  */
 
 export type AnswerQuality = "strong" | "adequate" | "weak" | "contradiction";
-export type SessionMode = "real" | "practice" | "dress_rehearsal";
+export type SessionMode = "real" | "practice" | "dress_rehearsal" | "drill";
 
 export interface ProbeResult {
   probeId: string;
@@ -57,7 +57,7 @@ export const REALISM_EVENTS = [
 
 export const SessionPlanSchema = z.object({
   seed: z.string(),
-  mode: z.enum(["real", "practice", "dress_rehearsal"]),
+  mode: z.enum(["real", "practice", "dress_rehearsal", "drill"]),
   officer: z.object({
     name: z.string(),
     voice: z.string(),
@@ -81,7 +81,7 @@ export const SessionPlanSchema = z.object({
         reason: z.enum(["untested", "weak_retest", "improving", "case_flag", "expert_flag", "coverage", "wildcard"]),
       }),
     )
-    .min(2)
+    .min(1)
     .max(5),
   targetDurationSec: z.number().int().min(45).max(360),
   earlyDecisionAllowed: z.boolean(),
@@ -269,6 +269,10 @@ function pickNoteProbe(rng: Rng, notes: readonly CaseNote[], past: readonly Past
   const total = pool.reduce((s, n) => s + (NOTE_WEIGHT[n.category] ?? 1), 0);
   let r = rng() * total;
   const note = pool.find((n) => (r -= NOTE_WEIGHT[n.category] ?? 1) <= 0) ?? pool[pool.length - 1];
+  return noteProbe(note);
+}
+
+function noteProbe(note: CaseNote): PlannedProbe {
   const entry = isOnScreen(note.sourceKind)
     ? `Ask about this, in your own words: ${note.text}`
     : // The officer learns what's in a folder document only by looking at it.
@@ -282,4 +286,52 @@ function pickNoteProbe(rng: Rng, notes: readonly CaseNote[], past: readonly Past
     mustInclude: ["a direct explanation with the specifics"],
     reason: "case_flag",
   };
+}
+
+/**
+ * A one-question drill: one topic, a fresh officer, a phrasing the applicant
+ * hasn't heard lately, at most one follow-up. Returns null for an unknown topic.
+ */
+export function planDrill(input: DirectorInput, probeId: string): SessionPlan | null {
+  const { profile, pastSessions } = input;
+  const rng = createRng(input.seed);
+  const recentQuestions = pastSessions.slice(0, 3).flatMap((s) => s.askedQuestions);
+  let planned: PlannedProbe | null = null;
+
+  if (probeId.startsWith(NOTE_PROBE_PREFIX)) {
+    const note = (input.notes ?? []).find((n) => NOTE_PROBE_PREFIX + n.id === probeId);
+    if (!note) return null;
+    planned = noteProbe(note);
+  } else {
+    const probe = probesFor(profile.visaType).find((p) => p.id === probeId && p.entry.some((t) => isFillable(t, profile)));
+    if (!probe) return null;
+    const fill = (list: readonly string[]) => list.filter((t) => isFillable(t, profile)).map((t) => fillTemplate(t, profile));
+    planned = {
+      probeId: probe.id,
+      critical: probe.critical,
+      entry: chooseEntry(rng, probe, profile, recentQuestions).text,
+      followUpVague: fill(probe.followUpVague),
+      followUpContradiction: fill(probe.followUpContradiction),
+      mustInclude: probe.mustInclude(profile),
+      reason: probeStatus(probe.id, pastSessions) === "weak" ? "weak_retest" : "coverage",
+    };
+  }
+
+  const officer = sampleOfficer(rng, {
+    readiness: input.readiness,
+    recent: pastSessions.slice(0, 3).map((s) => s.officer),
+  });
+  return SessionPlanSchema.parse({
+    seed: input.seed,
+    mode: "drill",
+    visaType: profile.visaType,
+    officer,
+    probes: [planned],
+    targetDurationSec: 45,
+    earlyDecisionAllowed: false,
+    events: [],
+    noveltyRate: 1,
+    notes: (input.notes ?? []).slice(0, 30).map((n) => ({ id: n.id, text: n.text, source: n.sourceKind, onScreen: isOnScreen(n.sourceKind) })),
+    folder: [...new Set(input.folder ?? [])].slice(0, 20),
+  });
 }

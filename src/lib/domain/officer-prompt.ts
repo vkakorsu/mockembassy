@@ -74,6 +74,14 @@ export function buildOfficerInstruction(plan: SessionPlan, profile: CaseProfile)
     )
     .join("\n");
 
+  const drill = plan.mode === "drill";
+  const docs = profile.visaType === "F1" ? " and I-20" : "";
+  const opening = drill
+    ? "- THIS IS A ONE-QUESTION DRILL. Skip the greeting and the documents: your first turn is the question itself. If the answer is vague or incomplete, ask at most one follow-up."
+    : `- Open the way officers do: a short greeting, then ask for the passport${docs} as if it's being passed through the slot ("Good morning. Passport${docs}, please."). That is your whole first turn: stop and let them hand the documents over. Don't call any tool in your first turn. Ask your first question on your next turn.`;
+  const ending = drill
+    ? "- After the answer (and any one follow-up), log it, then call end_interview. Say ONLY the line it returns, and stop."
+    : `- When you have heard enough (about ${Math.round(plan.targetDurationSec / 60)} minute(s)${plan.earlyDecisionAllowed ? ", or earlier if the key answers are clearly strong" : ""}), call end_interview. Then say ONLY the decision line it returns, in your own voice, and stop.`;
   const onScreen = (plan.notes ?? []).filter((n) => n.onScreen);
   const folder = plan.folder ?? [];
 
@@ -91,7 +99,7 @@ WHAT TO TEST, in roughly this order (rephrase naturally if you like, keep the su
 ${probes}
 
 HOW A REAL WINDOW INTERVIEW RUNS:
-- Open the way officers do: a short greeting, then ask for the passport${profile.visaType === "F1" ? " and I-20" : ""} as if it's being passed through the slot ("Good morning. Passport${profile.visaType === "F1" ? " and I-20" : ""}, please."). That is your whole first turn: stop and let them hand the documents over. Don't call any tool in your first turn. Ask your first question on your next turn.
+${opening}
 - You decide on the totality of what you hear. The burden is on the applicant to convince you.
 ${
   profile.visaType === "F1"
@@ -114,7 +122,7 @@ TOOLS: these are silent function calls. Never say a tool's name, arguments or an
   - contradiction: conflicts with the file or an earlier answer.
 - Then, in the same turn, keep the interview moving: ask your next question or a follow-up. Never go quiet after logging.
 - If an answer conflicts with the file, also call log_inconsistency.
-- When you have heard enough (about ${Math.round(plan.targetDurationSec / 60)} minute(s)${plan.earlyDecisionAllowed ? ", or earlier if the key answers are clearly strong" : ""}), call end_interview. Then say ONLY the decision line it returns, in your own voice, and stop.
+${ending}
 
 Messages that start with [REFEREE] come from the system, not the applicant. Follow them. "[REFEREE] Cut in" means: interrupt now, politely but firmly ("Okay, let me stop you there."), and ask your next question.`;
 }

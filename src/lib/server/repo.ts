@@ -2,7 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { CaseProfile } from "@/lib/domain/case";
 import type { PastSession, ProbeResult, SessionPlan } from "@/lib/domain/director";
-import { entitlement, type Entitlement, type PassRow, type PlanId } from "@/lib/domain/entitlement";
+import { drillEntitlement, entitlement, type Entitlement, type PassRow, type PlanId } from "@/lib/domain/entitlement";
 
 /** Data access shared by pages, actions and routes. Pass an RLS-scoped client when acting as the user. */
 
@@ -60,12 +60,14 @@ export async function pastSessions(db: SupabaseClient, caseId: string, limit = 1
 export async function caseEntitlement(db: SupabaseClient, caseRow: CaseRow, now = new Date()): Promise<Entitlement> {
   const [{ data: passes }, { data: sessions }] = await Promise.all([
     db.from("passes").select("*").eq("case_id", caseRow.id),
-    db.from("sessions").select("created_at, is_free").eq("case_id", caseRow.id),
+    // Drills don't count towards mock limits (drillEntitlement).
+    db.from("sessions").select("created_at, is_free").eq("case_id", caseRow.id).neq("mode", "drill"),
   ]);
   const { count: freeUsedOnAccount } = await db
     .from("sessions")
     .select("id, cases!inner(user_id)", { count: "exact", head: true })
     .eq("is_free", true)
+    .neq("mode", "drill")
     .eq("cases.user_id", caseRow.user_id);
   const interview = caseRow.interview_at ? new Date(caseRow.interview_at) : now;
   const rows: PassRow[] = (passes ?? []).map((p) => ({
@@ -106,4 +108,25 @@ export function readinessFrom(sessions: PastSession[], relevantProbeIds: string[
   }
   const solid = relevantProbeIds.filter((id) => (good.get(id)?.size ?? 0) >= 2).length;
   return solid / relevantProbeIds.length;
+}
+
+export async function caseDrillEntitlement(db: SupabaseClient, caseRow: CaseRow, now = new Date()): Promise<Entitlement> {
+  const startOfDay = new Date(now);
+  startOfDay.setUTCHours(0, 0, 0, 0);
+  const [mock, { count: drillsToday }, { count: freeDrillsUsed }] = await Promise.all([
+    caseEntitlement(db, caseRow, now),
+    db
+      .from("sessions")
+      .select("id, cases!inner(user_id)", { count: "exact", head: true })
+      .eq("mode", "drill")
+      .eq("cases.user_id", caseRow.user_id)
+      .gte("created_at", startOfDay.toISOString()),
+    db
+      .from("sessions")
+      .select("id, cases!inner(user_id)", { count: "exact", head: true })
+      .eq("mode", "drill")
+      .eq("is_free", true)
+      .eq("cases.user_id", caseRow.user_id),
+  ]);
+  return drillEntitlement({ mock, drillsToday: drillsToday ?? 0, freeDrillsUsed: freeDrillsUsed ?? 0 });
 }

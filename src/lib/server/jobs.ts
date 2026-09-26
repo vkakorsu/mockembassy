@@ -8,7 +8,8 @@ import { validateRewrite } from "@/lib/domain/rewrite-validator";
 import { isDuplicateNote, redactIdentifiers, toUsd } from "@/lib/domain/notes";
 import { isRepeatRequest, stripToolText } from "@/lib/domain/transcript";
 import { env } from "@/lib/env";
-import { extractFacts, gradeDebrief, isTransient, transcribeDocument } from "@/lib/server/gemini";
+import { sliceSamples, voiceMetrics, wavSamples, encodeWav, type VoiceMetrics } from "@/lib/domain/voice";
+import { caseVocabulary, extractFacts, gradeDebrief, isTransient, transcribeAnswer, transcribeDocument } from "@/lib/server/gemini";
 import { createServiceClient } from "@/lib/supabase/server";
 
 /**
@@ -128,7 +129,11 @@ export async function runDebrief(sessionId: string) {
   const db = createServiceClient();
   await db.from("sessions").update({ debrief_status: "running" }).eq("id", sessionId);
   try {
-    const { data: session } = await db.from("sessions").select("case_id, profile_version, plan, debrief").eq("id", sessionId).single();
+    const { data: session } = await db
+      .from("sessions")
+      .select("case_id, profile_version, plan, debrief, recording_path")
+      .eq("id", sessionId)
+      .single();
     const { data: prof } = await db
       .from("case_profiles")
       .select("profile")
@@ -139,9 +144,47 @@ export async function runDebrief(sessionId: string) {
     const plan = session!.plan as SessionPlan;
     const { data: turns } = await db
       .from("turns")
-      .select("seq, officer_text, user_transcript_raw, user_transcript_corrected, started_ms, ended_ms")
+      .select("seq, officer_text, user_transcript_raw, user_transcript_corrected, user_transcript_asr, started_ms, ended_ms")
       .eq("session_id", sessionId)
       .order("seq");
+
+    // From the recording: a careful second transcript of each answer (once),
+    // and how it sounded (pace, pauses, trailing off).
+    const voice = new Map<number, VoiceMetrics>();
+    if (session!.recording_path?.endsWith(".wav")) {
+      try {
+        const { data: file } = await db.storage.from("recordings").download(session!.recording_path);
+        if (file) {
+          const { samples, sampleRate } = wavSamples(new Uint8Array(await file.arrayBuffer()));
+          const vocabulary = caseVocabulary(profile);
+          const timed = (turns ?? []).filter((t) => t.started_ms != null && t.ended_ms != null && t.ended_ms > t.started_ms);
+          for (let i = 0; i < timed.length; i += 4) {
+            await Promise.all(
+              timed.slice(i, i + 4).map(async (t) => {
+                const clip = sliceSamples(samples, sampleRate, t.started_ms! - 400, t.ended_ms! + 800);
+                voice.set(t.seq, voiceMetrics(clip, sampleRate));
+                if (t.user_transcript_asr != null) return;
+                const text = await transcribeAnswer({
+                  wav: encodeWav([clip], sampleRate),
+                  question: stripToolText(t.officer_text),
+                  vocabulary,
+                }).catch((e) => {
+                  console.warn("[asr] answer transcription failed:", e instanceof Error ? e.message.slice(0, 200) : e);
+                  return null;
+                });
+                if (text === null) return;
+                t.user_transcript_asr = text;
+                await db.from("turns").update({ user_transcript_asr: text }).eq("session_id", sessionId).eq("seq", t.seq);
+              }),
+            );
+          }
+        }
+      } catch {
+        // The live transcript still works; this only improves it.
+      }
+    }
+    const answerText = (t: { user_transcript_corrected: string | null; user_transcript_asr: string | null; user_transcript_raw: string | null }) =>
+      (t.user_transcript_corrected ?? (t.user_transcript_asr || null) ?? t.user_transcript_raw ?? "").trim();
 
     const { data: noteRows } = await db
       .from("case_notes")
@@ -165,15 +208,15 @@ export async function runDebrief(sessionId: string) {
 
     const answered = (turns ?? []).filter(
       (t) =>
-        (t.user_transcript_corrected ?? t.user_transcript_raw ?? "").trim() &&
+        answerText(t) &&
         // Handing over the passport isn't an answer to grade, nor is "What?".
         !(t.seq === 1 && !String(t.officer_text).includes("?")) &&
-        !isRepeatRequest(t.user_transcript_corrected ?? t.user_transcript_raw ?? ""),
+        !isRepeatRequest(answerText(t)),
     );
     const input = answered.map((t) => ({
       seq: t.seq,
       officer: stripToolText(t.officer_text),
-      answer: (t.user_transcript_corrected ?? t.user_transcript_raw ?? "").trim(),
+      answer: answerText(t),
       seconds: t.started_ms != null && t.ended_ms != null ? (t.ended_ms - t.started_ms) / 1000 : 0,
     }));
     // Grade twice and merge (src/lib/domain/grade-merge.ts); one failed run still yields a debrief.
@@ -205,6 +248,7 @@ export async function runDebrief(sessionId: string) {
           scores: {
             ...(g ? { llm: g.scores, testing: g.testing, probe_id: g.probe_id } : {}),
             delivery: deliveryMetrics(t.answer, t.seconds),
+            voice: voice.get(t.seq) ?? null,
             stronger_answer: stronger,
             missing_evidence: g?.missing_evidence ?? null,
             rewrite_blocked_terms: blocked,

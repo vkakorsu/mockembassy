@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Guilloche } from "@/components/guilloche";
 import type { LiveBehaviour } from "@/lib/domain/live-behaviour";
+import { encodeWav } from "@/lib/domain/voice";
 import { createClient } from "@/lib/supabase/browser";
 
 /**
@@ -30,6 +31,8 @@ interface Props {
   officerName: string;
   targetDurationSec: number;
   isFree: boolean;
+  /** One-question drill: no greeting, no passport, straight to the question. */
+  drill?: boolean;
   supabaseUrl: string;
   publishableKey: string;
 }
@@ -56,6 +59,8 @@ const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${Str
 
 /** Tools the officer waits on (see BLOCKING_TOOLS in src/lib/server/gemini.ts). */
 const BLOCKING_TOOLS = new Set(["end_interview", "request_document"]);
+/** 100 ms chunks: stop recording after 8 minutes. */
+const MAX_RECORDING_CHUNKS = 4800;
 /** Mic RMS above this counts as speech (after browser noise suppression). */
 const VOICE_LEVEL = 0.02;
 /** How long after the applicant stops talking before a silent officer is prompted. */
@@ -85,7 +90,8 @@ export function LiveRoom(props: Props) {
   const finishingRef = useRef(false);
   const cleanupRef = useRef<() => void>(() => {});
   const playRef = useRef<{ ctx: AudioContext; analyser: AnalyserNode; next: number; sources: AudioBufferSourceNode[] } | null>(null);
-  const recorderRef = useRef<{ rec: MediaRecorder; chunks: Blob[] } | null>(null);
+  /** Mic audio since the session clock started (src/lib/domain/voice.ts). */
+  const pcmRef = useRef<Int16Array[]>([]);
   // Client-timed realism (src/lib/domain/live-behaviour.ts).
   const behaviourRef = useRef<LiveBehaviour | null>(null);
   const officerTurnRef = useRef(0);
@@ -282,7 +288,7 @@ export function LiveRoom(props: Props) {
   function onMessage(msg: LiveServerMessage) {
     const sc = msg.serverContent;
     if (sc?.interrupted) stopPlayback();
-    if (sc?.turnComplete && officerTurnRef.current === 1 && lastVoiceAtRef.current <= lastOfficerAtRef.current) {
+    if (!props.drill && sc?.turnComplete && officerTurnRef.current === 1 && lastVoiceAtRef.current <= lastOfficerAtRef.current) {
       offerOpeningHandover(turnsRef.current[0]?.officer ?? "");
     }
     if (sc?.turnComplete || sc?.interrupted) officerSpeakingRef.current = false;
@@ -309,20 +315,17 @@ export function LiveRoom(props: Props) {
     cleanupRef.current();
 
     let recordingPath: string | null = null;
-    const r = recorderRef.current;
-    if (r) {
-      await new Promise<void>((resolve) => {
-        if (r.rec.state === "inactive") return resolve();
-        r.rec.onstop = () => resolve();
-        r.rec.stop();
-      });
+    if (pcmRef.current.length) {
       try {
-        const blob = new Blob(r.chunks, { type: r.rec.mimeType || "audio/webm" });
-        const path = `${props.userId}/${props.sessionId}.webm`;
+        // 16 kHz WAV, aligned with the turn timings: used for playback and a
+        // second, more accurate transcript of each answer.
+        const blob = new Blob([encodeWav(pcmRef.current)], { type: "audio/wav" });
+        const path = `${props.userId}/${props.sessionId}.wav`;
         const supabase = createClient(props.supabaseUrl, props.publishableKey);
-        const { error } = await supabase.storage.from("recordings").upload(path, blob, { upsert: true, contentType: blob.type });
+        const { error } = await supabase.storage.from("recordings").upload(path, blob, { upsert: true, contentType: "audio/wav" });
         if (!error) recordingPath = path;
       } catch {}
+      pcmRef.current = [];
     }
     const turns = turnsRef.current.filter((t) => t.officer.trim() || t.answer.trim());
     await fetch(`/api/sessions/${props.sessionId}/complete`, {
@@ -363,11 +366,6 @@ export function LiveRoom(props: Props) {
       const node = new AudioWorkletNode(capCtx, "pcm-capture");
       capCtx.createMediaStreamSource(mic).connect(node);
 
-      const rec = new MediaRecorder(mic);
-      const chunks: Blob[] = [];
-      rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
-      rec.start(1000);
-      recorderRef.current = { rec, chunks };
 
       const ai = new GoogleGenAI({ apiKey: tokenJson.token, httpOptions: { apiVersion: "v1alpha" } });
       const session = await ai.live.connect({
@@ -388,6 +386,7 @@ export function LiveRoom(props: Props) {
 
       node.port.onmessage = (e: MessageEvent<{ pcm: ArrayBuffer; level: number }>) => {
         setMicLevel(e.data.level);
+        if (startRef.current && pcmRef.current.length < MAX_RECORDING_CHUNKS) pcmRef.current.push(new Int16Array(e.data.pcm));
         const p = playRef.current;
         const officerAudible = p ? p.next > p.ctx.currentTime : false;
         // Ignore echo of the officer's own voice.
@@ -400,7 +399,7 @@ export function LiveRoom(props: Props) {
           }
           lastVoiceAtRef.current = t;
           nudgedRef.current = false;
-          if (handoverRef.current && officerTurnRef.current === 1) handoverRef.current(false);
+          if (handoverRef.current && officerTurnRef.current === 1 && !props.drill) handoverRef.current(false);
           if (startRef.current) {
             const turn = currentTurn();
             if (turn.startedMs === null) turn.startedMs = t - startRef.current;
@@ -450,7 +449,11 @@ export function LiveRoom(props: Props) {
       startRef.current = Date.now();
       setPhase("live");
       setStatus("");
-      referee("The applicant has stepped up to your window. Greet them briefly and begin.");
+      referee(
+        props.drill
+          ? "The applicant is at your window for a one-question drill. Ask your question now."
+          : "The applicant has stepped up to your window. Greet them briefly and begin.",
+      );
     } catch (e) {
       cleanupRef.current();
       setPhase("error");
@@ -478,7 +481,7 @@ export function LiveRoom(props: Props) {
         <div className="doc relative flex flex-1 flex-col overflow-hidden">
           <Guilloche className="guilloche pointer-events-none absolute -right-52 -top-52 w-[560px]" />
           <div className="relative flex items-center justify-between border-b border-ink px-5 py-3">
-            <span className="label">Window 07 · {props.isFree ? "Free mock" : "Practice interview"}</span>
+            <span className="label">Window 07 · {props.drill ? "One-question drill" : props.isFree ? "Free mock" : "Practice interview"}</span>
             <span className="label tabular" aria-label="Time at the window">
               {phase === "live" || phase === "ending" ? fmt(elapsed) : "00:00"}
             </span>

@@ -55,6 +55,7 @@ const NOTICES: Record<string, string> = {
   paid: "Payment received. Your pass is active.",
   "case-limit": "You've reached the limit of 5 applicant cases on one account. Contact us if you're an agency or school.",
   "payment-pending": "We're still confirming your payment. This page will update shortly.",
+  "drill-unavailable": "That question can't be drilled for this case any more (your confirmed facts changed). Pick another from a debrief.",
 };
 
 export function Notice({ code }: { code?: string | string[] }) {

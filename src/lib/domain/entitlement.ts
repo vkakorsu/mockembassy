@@ -18,6 +18,9 @@ export type Entitlement =
   | { kind: "none"; reason: string };
 
 export const FREE_MOCK_SECONDS = 90;
+/** One-question drills: a few free to show the value, then plenty with a pass. */
+export const FREE_DRILLS_PER_ACCOUNT = 3;
+export const DAILY_DRILLS = 30;
 export const SPRINT_MOCKS = 3;
 export const SPRINT_DAYS = 14;
 
@@ -57,4 +60,22 @@ export function entitlement(input: {
   }
   if (input.freeSessionsUsed === 0) return { kind: "free", reason: "Your free 90-second mock" };
   return { kind: "none", reason: "Get a pass to keep practising." };
+}
+
+/** Drills sit beside mocks: they never use up a mock or the daily mock limit. */
+export function drillEntitlement(input: {
+  mock: Entitlement;
+  drillsToday: number;
+  freeDrillsUsed: number;
+}): Entitlement {
+  const hasPass = input.mock.kind === "full" || input.mock.reason.startsWith("Daily limit");
+  if (hasPass) {
+    return input.drillsToday < DAILY_DRILLS
+      ? { kind: "full", reason: "Drills included with your pass" }
+      : { kind: "none", reason: `Daily limit reached (${DAILY_DRILLS} drills). Come back tomorrow.` };
+  }
+  const left = FREE_DRILLS_PER_ACCOUNT - input.freeDrillsUsed;
+  return left > 0
+    ? { kind: "free", reason: `${left} free drill${left > 1 ? "s" : ""} left` }
+    : { kind: "none", reason: "Get a pass for unlimited drills." };
 }

@@ -105,6 +105,11 @@ export async function applyToolCall(
       state = { ...state, documentRequested: true, documentProvided: Boolean(call.args.provided) };
       break;
     case "end_interview": {
+      if (session.plan.mode === "drill") {
+        // Drills have no verdict: the debrief is the feedback.
+        result = { response: { say_exactly: "Okay. Thank you." }, speak: true, wrapUp: false };
+        break;
+      }
       const decision = stored.decision ?? decide(state);
       stored.decision = decision;
       result = {
@@ -117,7 +122,7 @@ export async function applyToolCall(
     }
   }
 
-  if (call.name !== "end_interview" && shouldEnd(state, elapsedSec)) {
+  if (call.name !== "end_interview" && session.plan.mode !== "drill" && shouldEnd(state, elapsedSec)) {
     result = { ...result, wrapUp: true };
   }
 

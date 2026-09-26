@@ -77,3 +77,10 @@ Gemini reads scanned PDFs and photos directly (no separate OCR step). The browse
 ### Handing documents over
 
 A real applicant passes the passport (and I-20) through the slot. When the officer asks, the window shows **Pass it through the slot**. Pressing it, or saying "here you go", counts; after 8 s it's assumed. Mid-interview requests (`request_document`) wait for the button; **I don't have it** is logged as a missing document, which can lead to a 221(g), as it would at the embassy. A document the applicant has but didn't upload is treated as handed over and unremarkable.
+
+## 7. Learning loop: drills, playback, second transcript
+
+- **Recording**: 16 kHz mono WAV of the applicant's mic, the same audio the officer hears, starting at session time 0, so each turn's `started_ms`/`ended_ms` index straight into it (about 1.9 MB a minute uploaded after the session; 8-minute cap).
+- **Second transcript**: after the session each answer is cut from the recording (−0.4 s/+0.8 s) and transcribed again by Flash, verbatim with fillers, with the officer's question and the case's names as context (`turns.user_transcript_asr`). Grading uses the user's correction, then this, then the live transcript.
+- **Hear yourself**: every answer on the debrief has a play button (signed URL, seeks to the answer). Delivery notes from the audio: pace (words per speaking minute), pauses of 1.5 s or more, voice dropping at the end, fillers, length. All deterministic.
+- **Drills**: one question, a fresh officer, a phrasing not heard recently, at most one follow-up, no verdict. Started from "Practise this one" on any graded answer, "Drill it again" on a drill debrief, or the case page's "Answers to fix" (weak, then improving topics). Drills don't use up mocks or the daily mock limit: 3 free per account, 30 a day with a pass. Their judgements count towards readiness like any other officer's.

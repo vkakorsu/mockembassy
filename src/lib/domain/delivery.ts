@@ -30,3 +30,26 @@ export function deliveryMetrics(text: string, seconds: number): DeliveryMetrics 
     tooLong: secs > 35,
   };
 }
+
+/** How the answer sounded, from the recording (src/lib/domain/voice.ts). */
+export interface VoiceSummary {
+  voicedSec: number;
+  longPauses: number;
+  longestPauseSec: number;
+  endLoudness: number;
+}
+
+/** Plain coaching lines about delivery. Deterministic: same audio, same advice. */
+export function deliveryNotes(d: DeliveryMetrics, voice?: VoiceSummary | null): string[] {
+  const notes: string[] = [];
+  const speaking = voice?.voicedSec && voice.voicedSec > 2 ? voice.voicedSec : d.seconds;
+  const wpm = speaking > 2 ? Math.round((d.words / speaking) * 60) : 0;
+  if (d.tooLong) notes.push(`Long answer (${Math.round(d.seconds)} s). Aim for under 20 seconds.`);
+  if (wpm > 175) notes.push(`Fast: about ${wpm} words a minute. Slow down so every word lands.`);
+  else if (wpm > 0 && wpm < 95 && d.words >= 8) notes.push(`Slow: about ${wpm} words a minute. Know your answer well enough to say it smoothly.`);
+  if (voice && voice.longPauses > 0)
+    notes.push(`${voice.longPauses} long pause${voice.longPauses > 1 ? "s" : ""} (longest ${voice.longestPauseSec} s). Pauses read as uncertainty.`);
+  if (voice && voice.voicedSec > 3 && voice.endLoudness < 0.55) notes.push("Your voice dropped towards the end. Finish as clearly as you start.");
+  if (d.fillers >= 3) notes.push(`${d.fillers} fillers (um, uh…). Pause silently instead.`);
+  return notes;
+}

@@ -5,7 +5,7 @@ import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { CaseProfile } from "@/lib/domain/case";
-import { NOTE_PROBE_PREFIX, planSession, type SessionMode } from "@/lib/domain/director";
+import { NOTE_PROBE_PREFIX, planDrill, planSession, type SessionMode } from "@/lib/domain/director";
 import type { CaseNote, NoteCategory } from "@/lib/domain/notes";
 import { FREE_MOCK_SECONDS, type PlanId } from "@/lib/domain/entitlement";
 import { moveInterviewDate } from "@/lib/domain/pass";
@@ -15,7 +15,7 @@ import { env, features } from "@/lib/env";
 import { requireUser } from "@/lib/server/auth";
 import { runDebrief, runExtraction } from "@/lib/server/jobs";
 import { initializeTransaction, priceFor, PURCHASABLE } from "@/lib/server/paystack";
-import { caseEntitlement, getCase, latestProfile, pastSessions, readinessFrom } from "@/lib/server/repo";
+import { caseDrillEntitlement, caseEntitlement, getCase, latestProfile, pastSessions, readinessFrom } from "@/lib/server/repo";
 import { createServiceClient } from "@/lib/supabase/server";
 
 const PLANNER_VERSION = "director-v1";
@@ -296,6 +296,55 @@ export async function startSession(caseId: string, requestedMode: SessionMode) {
   if (ent.kind === "full" && !caseRow.identity_locked_at) {
     await admin.from("cases").update({ identity_locked_at: new Date().toISOString() }).eq("id", caseId);
   }
+  redirect(`/app/sessions/${data.id}`);
+}
+
+/** One question, answered, graded, again: the fastest way to fix a weak answer. */
+export async function startDrill(caseId: string, probeId: string) {
+  const { supabase } = await requireUser();
+  const caseRow = await getCase(supabase, caseId);
+  if (!caseRow) throw new Error("Case not found");
+  const current = await latestProfile(supabase, caseId);
+  if (!current) redirect(`/app/cases/${caseId}/profile`);
+
+  const ent = await caseDrillEntitlement(supabase, caseRow);
+  if (ent.kind === "none") redirect(`/app/cases/${caseId}/pass?reason=${encodeURIComponent(ent.reason)}`);
+
+  const [history, { data: noteRows }, { data: docRows }] = await Promise.all([
+    pastSessions(supabase, caseId),
+    supabase.from("case_notes").select("id, source_kind, category, text").eq("case_id", caseId).eq("status", "confirmed"),
+    supabase.from("documents").select("kind").eq("case_id", caseId),
+  ]);
+  const relevant = probesFor(caseRow.visa_type).filter((p) => p.relevance(current.profile) > 0).map((p) => p.id);
+  const seed = randomUUID();
+  const plan = planDrill(
+    {
+      profile: current.profile,
+      pastSessions: history,
+      readiness: readinessFrom(history, relevant),
+      mode: "drill",
+      seed,
+      notes: (noteRows ?? []).map((n) => ({ id: n.id, sourceKind: n.source_kind, category: n.category as NoteCategory, text: n.text })),
+      folder: (docRows ?? []).map((d) => d.kind as string),
+    },
+    z.string().max(80).parse(probeId),
+  );
+  if (!plan) redirect(`/app/cases/${caseId}?notice=drill-unavailable`);
+
+  const { data, error } = await createServiceClient()
+    .from("sessions")
+    .insert({
+      case_id: caseId,
+      profile_version: current.version,
+      mode: "drill",
+      plan,
+      seed,
+      planner_version: PLANNER_VERSION,
+      is_free: ent.kind === "free",
+    })
+    .select("id")
+    .single();
+  if (error) throw error;
   redirect(`/app/sessions/${data.id}`);
 }
 

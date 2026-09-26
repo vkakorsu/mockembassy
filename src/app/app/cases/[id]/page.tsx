@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { activatePassNow, reportOutcome, setInterviewDate, startSession } from "@/app/app/actions";
+import { activatePassNow, reportOutcome, setInterviewDate, startDrill, startSession } from "@/app/app/actions";
 import { Button, Card, Field, inputCls, Notice, PageTitle } from "@/components/app/ui";
 import { scanCase } from "@/lib/domain/case-scan";
-import { probesFor } from "@/lib/domain/probes";
+import { probeStatus } from "@/lib/domain/director";
+import { fillTemplate, isFillable, probesFor } from "@/lib/domain/probes";
 import { passWindow } from "@/lib/domain/pass";
 import { requireUser } from "@/lib/server/auth";
 import { caseEntitlement, getCase, latestProfile, pastSessions, readinessFrom } from "@/lib/server/repo";
@@ -42,6 +43,20 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
   const flags = current ? scanCase(current.profile) : [];
   const relevant = current ? probesFor(caseRow.visa_type).filter((p) => p.relevance(current.profile) > 0).map((p) => p.id) : [];
   const readiness = readinessFrom(history, relevant);
+  // Topics to drill: answered weakly last time, then ones still improving.
+  const toFix = current
+    ? probesFor(caseRow.visa_type)
+        .filter((p) => relevant.includes(p.id))
+        .map((p) => ({ probe: p, status: probeStatus(p.id, history) }))
+        .filter((x) => x.status === "weak" || x.status === "improving")
+        .sort((a, b) => (a.status === "weak" ? 0 : 1) - (b.status === "weak" ? 0 : 1))
+        .slice(0, 4)
+        .map(({ probe, status }) => ({
+          id: probe.id,
+          status,
+          question: fillTemplate(probe.entry.find((t) => isFillable(t, current.profile)) ?? probe.entry[0], current.profile),
+        }))
+    : [];
   const interview = caseRow.interview_at ? new Date(caseRow.interview_at) : null;
   const pass = passes?.find((p) => p.plan !== "sprint");
   const passWin = pass && interview
@@ -108,6 +123,28 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
               </div>
             )}
           </Card>
+
+          {toFix.length > 0 && (
+            <Card>
+              <h2 className="font-display text-2xl uppercase">Answers to fix</h2>
+              <p className="mt-1 text-sm text-muted">One question, a new officer each time, graded in seconds. Repeat until it&rsquo;s solid.</p>
+              <ul className="mt-4 divide-y divide-line">
+                {toFix.map((t) => (
+                  <li key={t.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
+                    <span className="min-w-0 flex-1">
+                      &ldquo;{t.question}&rdquo;
+                      <span className={`ml-2 text-xs ${t.status === "weak" ? "text-refused" : "text-muted"}`}>
+                        {t.status === "weak" ? "weak last time" : "improving"}
+                      </span>
+                    </span>
+                    <form action={startDrill.bind(null, id, t.id)}>
+                      <Button variant="ghost">Drill ▸</Button>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
 
           {flags.length > 0 && (
             <Card>

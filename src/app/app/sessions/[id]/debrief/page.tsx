@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { correctTranscript, rateSession, retryDebrief } from "@/app/app/actions";
+import { correctTranscript, rateSession, retryDebrief, startDrill } from "@/app/app/actions";
+import { AnswerAudioProvider, PlayAnswer } from "@/components/app/answer-audio";
 import { AutoRefresh } from "@/components/app/auto-refresh";
 import { BackLink, Button, Card, PageTitle } from "@/components/app/ui";
-import type { DeliveryMetrics } from "@/lib/domain/delivery";
+import { deliveryNotes, type DeliveryMetrics, type VoiceSummary } from "@/lib/domain/delivery";
 import type { SessionPlan } from "@/lib/domain/director";
 import { requireUser } from "@/lib/server/auth";
 
@@ -18,6 +19,8 @@ interface TurnScores {
   llm?: { directness: number; specificity: number; consistency: number; conciseness: number };
   testing?: string;
   delivery?: DeliveryMetrics;
+  voice?: VoiceSummary | null;
+  probe_id?: string | null;
   stronger_answer?: string | null;
   missing_evidence?: string | null;
   rewrite_blocked_terms?: string[];
@@ -32,30 +35,42 @@ function Score({ label, v }: { label: string; v?: number }) {
   );
 }
 
+// Correcting a transcript re-grades in the background (after()).
+export const maxDuration = 300;
+
 export default async function DebriefPage(props: PageProps<"/app/sessions/[id]/debrief">) {
   const { id } = await props.params;
   const { notice } = await props.searchParams;
   const { supabase } = await requireUser(`/app/sessions/${id}/debrief`);
   const { data: s } = await supabase
     .from("sessions")
-    .select("id, case_id, plan, outcome, decision_reasons, debrief, debrief_status, realism_rating, started_at, ended_at")
+    .select("id, case_id, plan, outcome, decision_reasons, debrief, debrief_status, realism_rating, started_at, ended_at, recording_path")
     .eq("id", id)
     .maybeSingle();
   if (!s) notFound();
   const { data: turns } = await supabase
     .from("turns")
-    .select("seq, officer_text, user_transcript_raw, user_transcript_corrected, started_ms, ended_ms, scores, red_flags")
+    .select("seq, officer_text, user_transcript_raw, user_transcript_corrected, user_transcript_asr, started_ms, ended_ms, scores, red_flags")
     .eq("session_id", id)
     .order("seq");
   const plan = s.plan as SessionPlan;
   // The closing decision line isn't a question: hide unanswered turns after the last answer.
-  const answeredText = (t: { user_transcript_raw: string | null; user_transcript_corrected: string | null }) =>
-    (t.user_transcript_corrected ?? t.user_transcript_raw ?? "").trim();
+  // Best transcript first: the user's correction, then the careful one from the recording, then the live one.
+  const answeredText = (t: { user_transcript_raw: string | null; user_transcript_corrected: string | null; user_transcript_asr: string | null }) =>
+    (t.user_transcript_corrected ?? (t.user_transcript_asr || null) ?? t.user_transcript_raw ?? "").trim();
   const lastAnswered = (turns ?? []).map((t) => Boolean(answeredText(t))).lastIndexOf(true);
   const shown = (turns ?? []).slice(0, lastAnswered + 1);
   const o = s.outcome ? OUTCOME[s.outcome as keyof typeof OUTCOME] : null;
   const debrief = s.debrief as { summary?: string; top_fixes?: string[]; first_minute_seqs?: number[] } | null;
   const grading = s.debrief_status === "pending" || s.debrief_status === "running";
+  const drill = plan.mode === "drill";
+  const planned = new Set(plan.probes.map((p) => p.probeId));
+  // Playback needs the WAV recording, whose time 0 matches the turn timings.
+  let audioSrc: string | null = null;
+  if (s.recording_path?.endsWith(".wav")) {
+    const { data: signed } = await supabase.storage.from("recordings").createSignedUrl(s.recording_path, 3600);
+    audioSrc = signed?.signedUrl ?? null;
+  }
   const seconds = s.started_at && s.ended_at ? Math.round((+new Date(s.ended_at) - +new Date(s.started_at)) / 1000) : null;
 
   return (
@@ -65,20 +80,31 @@ export default async function DebriefPage(props: PageProps<"/app/sessions/[id]/d
       {notice === "regrade-limit" && (
         <p role="status" className="mb-6 text-sm text-refused">You&rsquo;ve reached the re-grade limit for this session.</p>
       )}
-      <PageTitle eyebrow={`Debrief · ${plan.officer.name}${seconds ? ` · ${Math.floor(seconds / 60)}m ${seconds % 60}s` : ""}`} title={o?.title ?? "Session ended"}>
-        {o?.line} This is a training signal, not a prediction.
+      <PageTitle
+        eyebrow={`${drill ? "Drill" : "Debrief"} · ${plan.officer.name}${seconds ? ` · ${Math.floor(seconds / 60)}m ${seconds % 60}s` : ""}`}
+        title={drill ? "One question, again" : (o?.title ?? "Session ended")}
+      >
+        {drill ? "No verdict in a drill: fix the answer, then do it again with a new officer." : `${o?.line ?? ""} This is a training signal, not a prediction.`}
       </PageTitle>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_1.6fr]">
         <div className="space-y-6">
-          <Card>
-            <h2 className="font-display text-2xl uppercase">Why</h2>
-            <ul className="mt-3 space-y-2 text-sm">
-              {(s.decision_reasons ?? []).map((r: string) => (
-                <li key={r}>{r}</li>
-              ))}
-            </ul>
-          </Card>
+          {drill ? (
+            <form action={startDrill.bind(null, s.case_id, plan.probes[0].probeId)}>
+              <button className="w-full rounded-[3px] bg-ink px-5 py-3 text-sm font-semibold text-on-ink hover:bg-stamp">
+                Drill it again, new officer ▸
+              </button>
+            </form>
+          ) : (
+            <Card>
+              <h2 className="font-display text-2xl uppercase">Why</h2>
+              <ul className="mt-3 space-y-2 text-sm">
+                {(s.decision_reasons ?? []).map((r: string) => (
+                  <li key={r}>{r}</li>
+                ))}
+              </ul>
+            </Card>
+          )}
           <Card>
             <h2 className="font-display text-2xl uppercase">Fix these first</h2>
             {grading ? (
@@ -121,11 +147,15 @@ export default async function DebriefPage(props: PageProps<"/app/sessions/[id]/d
           </Link>
         </div>
 
+        <Answers src={audioSrc}>
         <div className="space-y-4">
           {shown.length === 0 && <Card><p className="text-sm text-muted">No answers were recorded.</p></Card>}
           {shown.map((t) => {
             const sc = (t.scores ?? {}) as TurnScores;
-            const answer = t.user_transcript_corrected ?? t.user_transcript_raw ?? "";
+            const answer = answeredText(t);
+            const notes = sc.delivery ? deliveryNotes(sc.delivery, sc.voice) : [];
+            // Drill the topic the officer was testing (only topics from this plan can be drilled).
+            const drillProbe = sc.probe_id && planned.has(sc.probe_id) ? sc.probe_id : drill ? plan.probes[0].probeId : null;
             const firstMinute = debrief?.first_minute_seqs?.includes(t.seq);
             return (
               <Card key={t.seq}>
@@ -142,6 +172,27 @@ export default async function DebriefPage(props: PageProps<"/app/sessions/[id]/d
                 </div>
                 <p className="font-display mt-3 text-xl">&ldquo;{t.officer_text}&rdquo;</p>
                 <p className="mt-3 text-sm leading-relaxed text-muted">{answer || <em>(no answer)</em>}</p>
+                {(audioSrc && t.started_ms != null && t.ended_ms != null && t.ended_ms > t.started_ms) || drillProbe ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {audioSrc && t.started_ms != null && t.ended_ms != null && t.ended_ms > t.started_ms && (
+                      <PlayAnswer id={t.seq} startMs={t.started_ms} endMs={t.ended_ms} />
+                    )}
+                    {drillProbe && !drill && (
+                      <form action={startDrill.bind(null, s.case_id, drillProbe)}>
+                        <button className="rounded-[3px] border border-ink px-3 py-1.5 text-xs font-semibold hover:bg-ink hover:text-on-ink">
+                          Practise this one ▸
+                        </button>
+                      </form>
+                    )}
+                  </div>
+                ) : null}
+                {!!notes.length && (
+                  <ul className="mt-3 space-y-1 text-xs text-muted">
+                    {notes.map((n) => (
+                      <li key={n}>· {n}</li>
+                    ))}
+                  </ul>
+                )}
                 {sc.llm && (
                   <div className="mt-4 grid grid-cols-4 gap-2 rounded-[4px] border border-line py-3">
                     <Score label="Direct" v={sc.llm.directness} />
@@ -179,7 +230,12 @@ export default async function DebriefPage(props: PageProps<"/app/sessions/[id]/d
             );
           })}
         </div>
+        </Answers>
       </div>
     </>
   );
+}
+
+function Answers({ src, children }: { src: string | null; children: React.ReactNode }) {
+  return src ? <AnswerAudioProvider src={src}>{children}</AnswerAudioProvider> : <>{children}</>;
 }
