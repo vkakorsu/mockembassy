@@ -1,145 +1,80 @@
 # Okwan pricing
 
-**Goal:** the fairest price in the market for a Ghanaian applicant, and still about **75% contribution margin** for us.
+**Goal:** the fairest, simplest price for a Ghanaian applicant, with about **70% contribution margin** even in the worst case.
 
-**Status:** a recommendation, written 25 Sep 2026, to be validated in Phase 0 (see "How we find the exact number" below). Figures assume **1 USD ≈ GHS 11.5**, the rate in the week of 21–25 Sep 2026 ([Wise](https://wise.com/us/currency-converter/ghs-to-usd-rate/history)).
+**Status:** credits model adopted 26 Sep 2026 (replacing the date-based Interview Pass), to be validated in Phase 0 (see "How we find the exact number" below). Figures assume **1 USD ≈ GHS 11.5**, the rate in the week of 21–25 Sep 2026 ([Wise](https://wise.com/us/currency-converter/ghs-to-usd-rate/history)).
 
 ---
 
 ## 1. The principles
 
-1. **Pay once per interview, never per minute.**
-   - The interview is a one-time event, so a subscription is wrong: people forget to cancel, and it breaks trust on WhatsApp.
-   - Per-minute or per-credit pricing is wrong for *learning*. Users ration practice to save credits, and practice is exactly what improves outcomes.
-   - Unlimited practice until the interview date means more practice, which means better interviews, more approvals and more referrals.
-2. **Price against the stakes, not against other apps.**
+1. **Pay for the practice you use.** A pack of interviews and drills, bought once. No subscriptions, no auto-renewals.
+2. **Nothing depends on the interview date.** Tying access to a date the user types in rewards lying about it, and every rule to contain that (windows, ceilings, proof uploads, date moves) confused honest users more than it stopped abuse. The date is now only for the countdown.
+3. **The worst case is priced in.** Every credit is bounded, so the heaviest possible user (using every credit, every interview running to its time cap) is still profitable. No fair-use small print, no daily caps.
+4. **Price against the stakes, not against other apps.**
    - An F-1 applicant pays about **$785 (≈ GHS 9,030)** in government fees:
      - $185 MRV fee
      - $350 SEVIS fee ([SevisGo](https://www.sevisgo.com/sevis-fee))
-     - $250 visa integrity fee on issuance ([Manifest Law](https://manifestlaw.com/blog/immigration/news/visa-integrity-fee/))
-   - A B1/B2 applicant pays about **$435 (≈ GHS 5,000)**. Ghana is not on the US visa bond list (checked 26 Sep 2026).
+     - $250 visa integrity fee on issuance, once collection starts ([Manifest Law](https://manifestlaw.com/blog/immigration/news/visa-integrity-fee/))
    - A local consultant charges around **$150 (≈ GHS 1,725)** for a one-hour mock.
-   - **Applicants are not the median earner.** The average formal salary is roughly GHS 3,500–5,000 a month ([Multiplier](https://www.usemultiplier.com/ghana/average-salary)), but F-1 applicants must document a full year of funding, and B1/B2 applicants must show strong ties. The price should still be under a week of an average salary. That's why the hero product is not GHS 700.
-3. **Never price on the outcome.** No "pay only if approved" and no "money back if refused":
-   - A 214(b) decision is mostly about the *case*, not the practice. An outcome-based price would be a hidden approval guarantee, which is the snake oil we refuse to sell.
-   - It attracts the weakest cases, and collecting payment after approval rarely works.
-   - Instead, we offer a goodwill **Second Attempt** policy (§3).
-4. **Show the price upfront in cedis, VAT included, payable by MoMo.** There are no surprises at checkout.
-5. **One simple ladder:** a free tier, one hero product, one premium option, and add-ons. Everything else is a variant of those.
+   - The main pack should cost well under a week of an average formal salary (roughly GHS 3,500–5,000 a month, [Multiplier](https://www.usemultiplier.com/ghana/average-salary)).
+5. **Never price on the outcome.** No "pay only if approved", no "money back if refused": a 214(b) decision is mostly about the case, and outcome pricing would be a hidden approval guarantee.
+6. **Show the price upfront in cedis, VAT included, payable by MoMo.**
 
 ---
 
-## 2. The price list (launch recommendation)
+## 2. The price list
 
-All prices include **20% VAT**, and every one can be paid with MTN MoMo, Telecel Cash or AirtelTigo Money through Paystack.
+All prices include **20% VAT** and can be paid with MTN MoMo, Telecel Cash, AirtelTigo Money or card through Paystack. Defined in code in `src/lib/domain/credits.ts` and `src/lib/pricing.ts`.
 
-| Plan | Price | What you get | Who it's for |
-|---|---|---|---|
-| **Free** | GHS 0 | Full **Case Scan** (every likely probe, not a teaser). **One 90-second Real-mode mock** with a summary debrief. 5 drills. | Everyone. It proves the product works in 3 minutes. |
-| **Sprint** | **GHS 149** (≈ $13) | **3 full mocks** with full debriefs. Valid 14 days. | Interviews less than a week away, or people who aren't sure yet. **The whole GHS 149 counts toward a Pass upgrade.** |
-| **Interview Pass** ⭐ | **GHS 349** (≈ $30) | **Unlimited mocks** (fair use: 3 full mocks a day) until **your interview date + 7 days**. Everything else is included:<br>• the Director-planned sessions<br>• full debriefs<br>• Readiness and the Consistency tracker<br>• the dress rehearsal<br>• the day-of plan<br>• WhatsApp drills<br>• the drill library | The default. About **3.9% of F-1 fees**, and **one-fifth of a single consultant hour**. |
-| **Family Pass** | **GHS 599** (≈ $52) | 2 Interview Passes plus **joint-interview mode**: the officer questions a couple, or a parent and child, together at the same window. | Parents travelling together (B1/B2), spouses, siblings |
-| **Pass + Coach** | **GHS 899** (≈ $78) | An Interview Pass plus **one 20-minute live mock with a certified Okwan Coach**. The coach reviews your Case Scan and your weakest recorded answers beforehand, and their notes feed your future AI sessions. | Anxious applicants and people who want a human check |
-| **Pass + Senior Expert** | **GHS 1,499** (≈ $130) | An Interview Pass plus **one 25-minute live mock with a verified senior expert** (a former consular officer or a senior US-visa professional), who reviews your case in writing beforehand. The number of slots is limited. | Refused before, complex histories, high-stakes cases |
+| Pack | Price | What you get |
+|---|---|---|
+| **Free** | GH₵0 | Case Scan and what-to-bring list (no signup), one 90-second interview with a full debrief, 3 drills |
+| **Prep** | **GH₵149** | **4 full interviews + 20 drills** |
+| **Full Prep** ⭐ | **GH₵299** | **10 full interviews + 60 drills** |
+| **Top-up** | GH₵79 | 3 interviews + 15 drills, added to what you have |
 
-**Add-ons** (bought after a pass):
-- **Async Coach Review:** GHS 299. A coach watches one of your recorded AI mocks and leaves voice and text notes on the timeline within 48 hours.
-- **Async Senior Review:** GHS 599. The same, done by a senior expert.
-- **Extra live Coach session:** GHS 599. **Extra live Senior session:** GHS 1,199.
-- **Gift a Pass:** $29, paid by card or in cedis. Family abroad often pays for a student's application costs. Your uncle in London should be able to send the pass by WhatsApp link.
-
-**Institutions** (agencies, schools, churches, scholarship bodies):
-- **Seat packs:**
-  - 10 seats for GHS 2,490 (GHS 249/seat)
-  - 50 seats for GHS 9,950 (GHS 199/seat)
-  - custom pricing above 200 seats
-- Every pack includes the counsellor dashboard, cohort readiness tracking, and white-label certificates of practice (these don't claim anything about outcomes).
-- Floor price: GHS 180/seat.
-
-**Why these numbers:**
-- **GHS 349 is below the psychological GHS 350 line.** It's close to Permito's $29 "10 mocks" price ([Permito roundup](https://permito.ai/blog/best-ai-mock-interview-tools-visa-2026)) while giving unlimited, case-specific practice. Permito's unlimited plan is $59 (≈ GHS 680). Okwan's hero product is **half the price of the global competitor's unlimited plan**, and it's built for Ghana.
-- **The Sprint exists to lower the first payment.** Crediting it fully toward the Pass removes any regret about buying "the wrong one".
-- **The Expert tier anchors the page** and makes GHS 349 look like the obvious choice. It's also genuinely valuable for the hardest cases, and it's capacity-limited by design.
+- **A full interview is any mode:** real interview, practice mode or dress rehearsal. One credit each.
+- **Credits last 6 months** from purchase (183 days). That covers long waits for an Accra appointment. When packs overlap, the credits that expire first are used first.
+- **Only a started session uses a credit.** Clicking a mode and leaving costs nothing; the allowance is checked again when the session starts.
+- **Why 10 interviews in the main pack:** readiness counts a topic as solid once two different officers heard it answered well. With 4–6 key topics that's roughly 6–10 full interviews, plus drills on the weak answers.
+- **Human experts** (Coach, Senior Expert) are shown as coming soon and will be a separate booking once recruited (see [`EXPERTS.md`](EXPERTS.md)). A Family option comes back when joint interviews are built. Group pricing for agencies and schools is by conversation for now.
 
 ---
 
-## 3. Trust policies (these make the price feel safe)
+## 3. Trust policies
 
-- **7-day refund, no questions asked**, if you've used at most one full mock. Abuse is cheap for us, and trust is expensive to lose.
-- **Second Attempt:**
-  - If you're refused, your pass **reactivates free for your next interview within 12 months**. You also get a free Reapplication Review, covering what has *materially* changed and whether to wait.
-  - It costs us little (marginal model costs only), it's honest because it doesn't promise an outcome, and the story spreads.
-- **The "Interview moved?" guarantee:** the pass follows your new date at no charge (the rules are in §3a).
+- **7-day refund** if you've used at most one interview (done by an admin from the user's page; Paystack returns it to the original wallet or card).
 - **No auto-renewals, ever.**
 
-### 3a. What if someone lies about their interview date? (pass rules)
+### 3a. Abuse, now that there's no date
 
-**Design rule:** honest users should never notice these rules. Only abuse runs into them. The goal isn't to catch every liar. It's to make sure lying can't earn more than a bounded, still-profitable amount of usage.
-
-1. **Every pass has a hard ceiling:** the interview date + 7 days, **or 60 days of use from activation, whichever comes first**. A fake date two years away still gets at most 60 days. That's the worst case already modelled in §4, and it's still profitable at the 3-mocks-a-day fair-use cap.
-2. **Buy now, activate later.** Real Accra appointments can be months away, and those applicants shouldn't need to lie. They can buy today and the 60-day clock starts only when they activate the pass, or automatically 45 days before the interview date they entered.
-3. **Proof is optional, and it unlocks more.** Uploading the **appointment confirmation** from the official scheduling portal:
-   - lifts the 60-day ceiling to "interview date + 7 days"
-   - is extracted automatically (date, time, post, applicant name)
-   - is checked against the Case Profile name
-
-   Without proof, the product works fine, just within the 60-day ceiling.
-4. **Moving a date:**
-   - The **first move is free, no questions asked.**
-   - Further moves need a new appointment confirmation.
-   - Moves never reset the 60-day activation clock unless a confirmation is uploaded.
-5. **A pass belongs to one applicant.** Account sharing is the more likely abuse ("my friend and I share one pass"), more than fake dates, so:
-   - A pass is bound to **one Case**: applicant name, DS-160 confirmation number (AA…), and passport last 4 digits (masked).
-   - After the first full mock, the Case identity is locked. A different applicant needs their own pass (or the Family Pass).
-   - At most 2 active devices, and one live session at a time.
-   - Soft signal only: if the voice in the recordings changes sharply between sessions, we show a friendly "is this still you?" prompt. It's never used for automatic bans.
-6. **Second Attempt needs evidence.** The pass reactivates after an upload of the **refusal letter (214(b) / 221(g) sheet)** and a **new appointment confirmation**. It covers one reactivation per pass, within 12 months.
-7. **Refunds:** at most one full mock used, within 7 days of purchase, and one refund per phone number or Case.
-8. **Expert sessions** can't be abused this way. They're booked slots, sold only when there is a free slot before the interview date (see [`EXPERTS.md`](EXPERTS.md)).
-
-**What's enforced in code (26 Sep 2026):**
-- **One free mock per account,** not per case. Otherwise creating new cases would give unlimited free mocks.
-- **At most 5 applicant cases per account.**
-- **One active login:** signing in signs out every other device, so a shared password keeps kicking the other person out.
-- **One live interview at a time** per account.
-- **The applicant's identity locks after the first full mock:** first name, age (±1), visa type, and school and program together. A friend can't overwrite the case with their details.
-- **A per-session cost cap:** each live session's token expires at the planned length plus 3 minutes.
-- **Up to 3 full mocks a day, within the pass window** (60 days without appointment proof).
-- **A sharing flag:** the admin quality page lists cases used from 3 or more different network and browser combinations.
-
-**Worst-case cost of an abuser:** assume 3 mocks a day for 60 days, each running to the token cap of about 7 minutes.
-- Gemini 3.8 Live audio costs about $0.005 per minute in and $0.018 per minute out. Grading adds under $0.01 per mock.
-- That's about $0.09 per mock, or about **$16 (≈ GHS 185)** in total.
-- The Pass nets about GHS 284 after VAT and fees, so **even the worst abuser stays profitable**. A realistic user costs a few cedis.
+- **Fake dates:** nothing to gain. The date doesn't unlock anything.
+- **Account sharing:** credits belong to one case (one applicant). Sharing a login splits the same credits; it can't create more. The case identity still locks after the first paid interview (first name, age ±1, visa type, school and program), one login is active at a time, one live interview at a time per account, and the admin quality page flags cases used from 3+ network and browser combinations.
+- **Free tier:** one free mock and 3 free drills per account (not per case), at most 5 cases per account.
+- **Cost of a single session** is capped by the Live token's lifetime (planned length plus 3 minutes).
 
 ---
 
 ## 4. Unit economics (per sale)
 
-VAT is 20% of the net price and is paid to GRA. Paystack takes **1.95%** on local MoMo and card payments ([Paystack pricing](https://paystack.com/gh/pricing)). The cost of goods (COGS) is model, voice and infrastructure cost (§4.6 of the plan): about **$2 (GHS 23)** for a typical Pass user.
+VAT is 20% of the net price and goes to GRA. Paystack takes **1.95%**. Model costs are estimates: about **$0.12 per full interview** at its time cap (Live audio, two grading runs, second transcript) and **$0.025 per drill**, at GHS 11.5 per dollar. The worst case assumes every credit is used at its cap.
 
-| Plan | Price | After VAT | Paystack | COGS | **Contribution** | Margin on price |
+| Pack | Price | After VAT | Paystack | Worst-case model cost | **Contribution** | Margin on price |
 |---|---|---|---|---|---|---|
-| Sprint | 149 | 124.2 | 2.9 | ~8 | **~113** | 76% |
-| Interview Pass (typical) | 349 | 290.8 | 6.8 | ~23 | **~261 (≈ $22.70)** | 75% |
-| Interview Pass (**worst case**: 3 mocks/day for 30 days) | 349 | 290.8 | 6.8 | ~207 | **~77** | 22% (still positive) |
-| Family Pass | 599 | 499.2 | 11.7 | ~40 | **~448** | 75% |
-| Pass + Coach (coach paid GHS 300 per session, including prep) | 899 | 749.2 | 17.5 | ~323 | **~409** | 45% |
-| Pass + Senior Expert (expert paid about $60, including prep) | 1,499 | 1,249.2 | 29.2 | ~713 | **~507** | 34% |
-| Async Coach Review (coach paid GHS 120) | 299 | 249.2 | 5.8 | 120 | **~123** | 41% |
-| Async Senior Review (expert paid about $25) | 599 | 499.2 | 11.7 | ~288 | **~200** | 33% |
-| Institutional seat | 199 | 165.8 | 3.9 | ~23 | **~139** | 70% |
+| Prep | 149 | 124.2 | 2.9 | ~11 | **~110** | 74% |
+| Full Prep | 299 | 249.2 | 5.8 | ~31 | **~212** | 71% |
+| Top-up | 79 | 65.8 | 1.5 | ~8.5 | **~56** | 71% |
 
-- **Fair use is what keeps "unlimited" safe.** Even the heaviest realistic user is profitable. Real users will average far below the cap, because the interview date ends the pass.
-- **Customer acquisition cost:** keep blended CAC **under GHS 130 (half the Pass contribution)**. Most of it should come from referrals and organic content.
-- **Referral reward:** GHS 40 MoMo cashback to the referrer, and GHS 40 off for the friend. It's paid when the friend *buys*, never tied to approval.
+- A realistic user costs far less than the worst case: few people use every credit.
+- **Customer acquisition cost:** keep blended CAC under about **GHS 100** (half the Full Prep contribution), mostly from referrals and the free Case Scan.
 
 ---
 
 ## 5. Honest market sizing (so we price for the right scale)
 
 - **The embassy in Accra processed about 61,000 visa applications in 2024** ([AllAfrica](https://allafrica.com/stories/202505140274.html)).
-- At **5% paid penetration** with a blended price of about GHS 349, that's **roughly GHS 1.06M (≈ $93k) a year**.
+- At **5% paid penetration** with a blended price of about GHS 250, that's **roughly GHS 760k (≈ $66k) a year**.
 - **So Ghana alone is a good business, but not a big one.** Pricing here should maximise *penetration and word of mouth*, not squeeze every cedi. The big numbers come from:
   1. **Institutional seats.** Agencies send hundreds of students a year.
   2. **Expanding across West Africa** with the same engine: Nigeria first, which has a much larger applicant volume.
@@ -151,12 +86,11 @@ VAT is 20% of the net price and is paid to GRA. Paystack takes **1.95%** on loca
 ## 6. How we find the exact number (don't guess, measure)
 
 1. **Phase 0:** run a **Van Westendorp price survey** plus a Gabor-Granger purchase-intent question with 150–300 recent and upcoming applicants, found through TikTok, campus groups and agencies. Split the results by F-1 and B1/B2.
-2. **Launch at a Founding price of GHS 249** for the first 1,000 passes, then move to GHS 349. This creates real urgency, rewards early users, and generates testimonials.
-3. **Test prices by time period, not by random split.** Run GHS 299, 349 and 399 in consecutive 2-week windows, and compare conversion and revenue per visitor. In Ghana, prices get screenshotted and shared on WhatsApp; if two friends see different prices on the same day, trust is gone.
+3. **Test prices by time period, not by random split.** Run Full Prep at GHS 249, 299 and 349 in consecutive 2-week windows, and compare conversion and revenue per visitor. In Ghana, prices get screenshotted and shared on WhatsApp; if two friends see different prices on the same day, trust is gone.
 4. **Revisit every quarter.** Revenue is in cedis and costs are in dollars:
    - The cedi can move sharply, as it did in 2022.
    - Gemini TTS prices double on 1 Jan 2027.
-   - Reprice when contribution drops below 65%. Announce changes a month ahead and honour existing passes.
+   - Reprice when contribution drops below 65%. Announce changes a month ahead and honour credits already bought.
 
 ---
 

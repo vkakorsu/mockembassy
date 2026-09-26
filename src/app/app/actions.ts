@@ -8,8 +8,8 @@ import { CaseProfile } from "@/lib/domain/case";
 import { ExtractedFacts } from "@/lib/domain/draft";
 import { NOTE_PROBE_PREFIX, planDrill, planSession, type SessionMode } from "@/lib/domain/director";
 import type { CaseNote, NoteCategory } from "@/lib/domain/notes";
-import { FREE_MOCK_SECONDS, type PlanId } from "@/lib/domain/entitlement";
-import { moveInterviewDate } from "@/lib/domain/pass";
+import type { PackId } from "@/lib/domain/credits";
+import { FREE_MOCK_SECONDS } from "@/lib/domain/entitlement";
 import { MAX_CASES_PER_ACCOUNT, sameApplicant } from "@/lib/domain/identity";
 import { readinessTopics } from "@/lib/domain/readiness";
 import { env, features } from "@/lib/env";
@@ -69,28 +69,9 @@ export async function setInterviewDate(caseId: string, formData: FormData) {
   const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).parse(formData.get("interviewDate"));
   const caseRow = await getCase(supabase, caseId);
   if (!caseRow) throw new Error("Case not found");
+  // Only for the countdown and reminders: it never controls what anyone can use.
   const newDate = new Date(`${date}T09:00:00Z`);
-
-  // Moving the date on a paid pass follows the pass rules (docs/PRICING.md §3a).
-  const { data: passes } = await supabase.from("passes").select("*").eq("case_id", caseId).is("refunded_at", null);
-  const pass = passes?.find((p) => p.plan !== "sprint");
-  if (pass && caseRow.interview_at) {
-    const moved = moveInterviewDate(
-      {
-        purchasedAt: new Date(pass.purchased_at),
-        interviewDate: new Date(caseRow.interview_at),
-        hasAppointmentProof: pass.has_appointment_proof,
-        dateMoves: pass.date_moves,
-      },
-      newDate,
-      new Date(),
-      { withNewProof: false },
-    );
-    if (!moved.ok) {
-      redirect(`/app/cases/${caseId}?notice=${moved.reason === "proof_required" ? "proof-required" : "date-in-past"}`);
-    }
-    await createServiceClient().from("passes").update({ date_moves: pass.date_moves + 1 }).eq("id", pass.id);
-  }
+  if (newDate.getTime() < Date.now() - 24 * 60 * 60 * 1000) redirect(`/app/cases/${caseId}?notice=date-in-past`);
   await supabase.from("cases").update({ interview_at: newDate.toISOString() }).eq("id", caseId);
   redirect(`/app/cases/${caseId}`);
 }
@@ -372,7 +353,7 @@ export async function rateSession(sessionId: string, rating: number) {
 
 /* --------------------------------------------------------------- billing */
 
-export async function buyPlan(caseId: string, plan: PlanId) {
+export async function buyPlan(caseId: string, plan: PackId) {
   const { user, supabase } = await requireUser();
   if (!features.paystack) redirect("/setup");
   if (!PURCHASABLE.includes(plan)) throw new Error("Unknown plan");
@@ -383,25 +364,12 @@ export async function buyPlan(caseId: string, plan: PlanId) {
   const tx = await initializeTransaction({
     // Paystack requires an email; phone-only users get a stable placeholder on our domain.
     email: user.email ?? `${user.id}@users.okwan.ai`,
-    amountPesewas: await priceFor(createServiceClient(), plan),
+    amountPesewas: priceFor(plan),
     reference,
     callbackUrl: `${env.siteUrl}/app/billing/return`,
     metadata: { case_id: caseId, user_id: user.id, plan },
   });
   redirect(tx.authorization_url);
-}
-
-export async function activatePassNow(caseId: string, passId: string) {
-  const { supabase } = await requireUser();
-  const caseRow = await getCase(supabase, caseId);
-  if (!caseRow) throw new Error("Case not found");
-  await createServiceClient()
-    .from("passes")
-    .update({ activated_at: new Date().toISOString() })
-    .eq("id", passId)
-    .eq("case_id", caseId)
-    .is("activated_at", null);
-  redirect(`/app/cases/${caseId}`);
 }
 
 /* -------------------------------------------------------------- outcomes */

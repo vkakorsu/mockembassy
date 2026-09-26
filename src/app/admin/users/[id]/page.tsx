@@ -9,10 +9,10 @@ export const metadata = { title: "User" };
 const tenMinutesAgo = () => new Date(Date.now() - 10 * 60_000).toISOString();
 
 const NOTICES: Record<string, string> = {
-  refunded: "Refund sent and pass marked refunded.",
-  granted: "Pass granted.",
+  refunded: "Refund sent and pack marked refunded.",
+  granted: "Pack granted.",
   "role-updated": "Role updated.",
-  "already-refunded": "That pass was already refunded.",
+  "already-refunded": "That pack was already refunded.",
   "paystack-missing": "Paystack isn't configured, so nothing was refunded.",
   "self-demote": "You can't remove your own admin role.",
 };
@@ -85,7 +85,17 @@ export default async function AdminUser(props: PageProps<"/admin/users/[id]">) {
 
       {(cases ?? []).map((c) => {
         const sessions = (c.sessions ?? []) as { id: string; outcome: string | null; is_free: boolean; realism_rating: number | null; created_at: string }[];
-        const passes = (c.passes ?? []) as { id: string; plan: string; amount_pesewas: number; paystack_reference: string; purchased_at: string; refunded_at: string | null }[];
+        const passes = (c.passes ?? []) as {
+          id: string;
+          plan: string;
+          amount_pesewas: number;
+          paystack_reference: string;
+          purchased_at: string;
+          expires_at: string;
+          interviews: number;
+          drills: number;
+          refunded_at: string | null;
+        }[];
         const outcome = (c.outcomes as unknown as { result: string } | null)?.result;
         return (
           <Section key={c.id} title={`${c.applicant_name} · ${c.visa_type === "F1" ? "F-1" : "B1/B2"}`}>
@@ -97,27 +107,31 @@ export default async function AdminUser(props: PageProps<"/admin/users/[id]">) {
 
             <div className="mt-4">
               <Table
-                head={["Plan", "Paid", "Reference", "Bought", "Status", ""]}
+                head={["Pack", "Credits", "Paid", "Reference", "Bought", "Status", ""]}
                 rows={passes.map((p) => [
                   p.plan,
+                  `${p.interviews} interviews · ${p.drills} drills`,
                   p.amount_pesewas ? ghs(p.amount_pesewas) : "comped",
                   <span key="r" className="font-mono text-xs">{p.paystack_reference}</span>,
                   new Date(p.purchased_at).toLocaleDateString(),
-                  p.refunded_at ? `refunded ${new Date(p.refunded_at).toLocaleDateString()}` : "active",
+                  p.refunded_at
+                    ? `refunded ${new Date(p.refunded_at).toLocaleDateString()}`
+                    : new Date(p.expires_at) < new Date()
+                      ? "expired"
+                      : `use by ${new Date(p.expires_at).toLocaleDateString()}`,
                   p.refunded_at ? "" : <ReasonForm key="f" action={refundPass.bind(null, id, p.id)} label="Refund" />,
                 ])}
-                empty="No passes."
+                empty="No packs."
               />
             </div>
 
             <div className="mt-4 space-y-3 rounded-[4px] border border-line p-4">
-              <p className="text-sm font-medium">Grant a comped pass</p>
+              <p className="text-sm font-medium">Grant a comped pack</p>
               <ReasonForm action={grantPass.bind(null, id, c.id)} label="Grant">
                 <select name="plan" className={`${inputCls} w-auto py-1.5 text-sm`}>
-                  <option value="pass">Interview Pass</option>
-                  <option value="sprint">Sprint</option>
-                  <option value="coach">Pass + Coach</option>
-                  <option value="senior">Pass + Senior</option>
+                  <option value="full">Full Prep (10 interviews, 60 drills)</option>
+                  <option value="prep">Prep (4 interviews, 20 drills)</option>
+                  <option value="topup">Top-up (3 interviews, 15 drills)</option>
                 </select>
               </ReasonForm>
             </div>

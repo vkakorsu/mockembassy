@@ -93,12 +93,11 @@ export async function runExtraction(documentId: string) {
       );
     }
 
-    // An appointment confirmation is proof for the pass rules (docs/PRICING.md §3a).
-    if (doc.kind === "appointment_confirmation" && appointment?.date) {
+    // An appointment confirmation fills in the interview date (for the countdown only).
+    if (doc.kind === "appointment_confirmation" && appointment?.date && !caseRow?.interview_at) {
       const parsed = new Date(appointment.date);
       if (!Number.isNaN(parsed.getTime())) {
         await db.from("cases").update({ interview_at: parsed.toISOString() }).eq("id", doc.case_id);
-        await db.from("passes").update({ has_appointment_proof: true }).eq("case_id", doc.case_id).is("refunded_at", null);
       }
     }
     await db

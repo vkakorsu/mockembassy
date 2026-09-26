@@ -3,7 +3,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { CaseProfile } from "@/lib/domain/case";
 import { readiness, type ReadinessTopic } from "@/lib/domain/readiness";
 import type { PastSession, ProbeResult, SessionPlan } from "@/lib/domain/director";
-import { drillEntitlement, entitlement, type Entitlement, type PassRow, type PlanId } from "@/lib/domain/entitlement";
+import { creditBalance, type Balance } from "@/lib/domain/credits";
+import { drillEntitlement, entitlement, type Entitlement } from "@/lib/domain/entitlement";
 
 /** Data access shared by pages, actions and routes. Pass an RLS-scoped client when acting as the user. */
 
@@ -58,41 +59,42 @@ export async function pastSessions(db: SupabaseClient, caseId: string, limit = 1
   });
 }
 
-export async function caseEntitlement(db: SupabaseClient, caseRow: CaseRow, now = new Date()): Promise<Entitlement> {
-  const [{ data: passes }, { data: sessions }] = await Promise.all([
-    db.from("passes").select("*").eq("case_id", caseRow.id),
-    // Only sessions that actually started count (clicking a mode and leaving
-    // costs nothing). Drills don't count towards mock limits (drillEntitlement).
-    db.from("sessions").select("started_at, is_free").eq("case_id", caseRow.id).neq("mode", "drill").not("started_at", "is", null),
+/** Credits left on a case: purchases minus paid sessions that started (src/lib/domain/credits.ts). */
+export async function caseCredits(db: SupabaseClient, caseId: string, now = new Date()): Promise<Balance> {
+  const [{ data: passes }, { data: used }] = await Promise.all([
+    db.from("passes").select("purchased_at, expires_at, interviews, drills, refunded_at").eq("case_id", caseId),
+    // Only sessions that actually started count: clicking a mode and leaving costs nothing.
+    db.from("sessions").select("started_at, mode").eq("case_id", caseId).eq("is_free", false).not("started_at", "is", null),
   ]);
-  const { count: freeUsedOnAccount } = await db
+  return creditBalance(
+    (passes ?? []).map((p) => ({
+      purchasedAt: new Date(p.purchased_at),
+      expiresAt: new Date(p.expires_at),
+      interviews: p.interviews,
+      drills: p.drills,
+      refunded: Boolean(p.refunded_at),
+    })),
+    (used ?? []).map((u) => ({ at: new Date(u.started_at), kind: u.mode === "drill" ? "drill" : "interview" })),
+    now,
+  );
+}
+
+/** Free sessions of one kind this account has started (the free mock and free drills are per account). */
+async function freeUsed(db: SupabaseClient, userId: string, drills: boolean): Promise<number> {
+  let q = db
     .from("sessions")
     .select("id, cases!inner(user_id)", { count: "exact", head: true })
     .eq("is_free", true)
-    .neq("mode", "drill")
     .not("started_at", "is", null)
-    .eq("cases.user_id", caseRow.user_id);
-  const interview = caseRow.interview_at ? new Date(caseRow.interview_at) : now;
-  const rows: PassRow[] = (passes ?? []).map((p) => ({
-    plan: p.plan as PlanId,
-    purchasedAt: new Date(p.purchased_at),
-    activatedAt: p.activated_at ? new Date(p.activated_at) : undefined,
-    interviewDate: interview,
-    hasAppointmentProof: p.has_appointment_proof,
-    dateMoves: p.date_moves,
-    refunded: Boolean(p.refunded_at),
-  }));
-  const full = (sessions ?? []).filter((s) => !s.is_free).map((s) => new Date(s.started_at));
-  const startOfDay = new Date(now);
-  startOfDay.setUTCHours(0, 0, 0, 0);
-  return entitlement({
-    passes: rows,
-    fullSessionsToday: full.filter((d) => d >= startOfDay).length,
-    fullSessionsSince: (since) => full.filter((d) => d >= since).length,
-    // One free mock per account (FREE_MOCKS_PER_ACCOUNT), not per case.
-    freeSessionsUsed: freeUsedOnAccount ?? 0,
-    now,
-  });
+    .eq("cases.user_id", userId);
+  q = drills ? q.eq("mode", "drill") : q.neq("mode", "drill");
+  const { count } = await q;
+  return count ?? 0;
+}
+
+export async function caseEntitlement(db: SupabaseClient, caseRow: CaseRow, now = new Date()): Promise<Entitlement> {
+  const [credits, freeSessionsUsed] = await Promise.all([caseCredits(db, caseRow.id, now), freeUsed(db, caseRow.user_id, false)]);
+  return entitlement({ credits, freeSessionsUsed });
 }
 
 /** Readiness 0..1 (src/lib/domain/readiness.ts). */
@@ -101,25 +103,8 @@ export function readinessFrom(sessions: PastSession[], topics: ReadinessTopic[])
 }
 
 export async function caseDrillEntitlement(db: SupabaseClient, caseRow: CaseRow, now = new Date()): Promise<Entitlement> {
-  const startOfDay = new Date(now);
-  startOfDay.setUTCHours(0, 0, 0, 0);
-  const [mock, { count: drillsToday }, { count: freeDrillsUsed }] = await Promise.all([
-    caseEntitlement(db, caseRow, now),
-    db
-      .from("sessions")
-      .select("id, cases!inner(user_id)", { count: "exact", head: true })
-      .eq("mode", "drill")
-      .eq("cases.user_id", caseRow.user_id)
-      .gte("started_at", startOfDay.toISOString()),
-    db
-      .from("sessions")
-      .select("id, cases!inner(user_id)", { count: "exact", head: true })
-      .eq("mode", "drill")
-      .eq("is_free", true)
-      .not("started_at", "is", null)
-      .eq("cases.user_id", caseRow.user_id),
-  ]);
-  return drillEntitlement({ mock, drillsToday: drillsToday ?? 0, freeDrillsUsed: freeDrillsUsed ?? 0 });
+  const [credits, freeDrillsUsed] = await Promise.all([caseCredits(db, caseRow.id, now), freeUsed(db, caseRow.user_id, true)]);
+  return drillEntitlement({ credits, freeDrillsUsed });
 }
 
 /**

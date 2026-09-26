@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { deliveryMetrics } from "../delivery";
+import { mergeDraft } from "../draft";
 import { planSession } from "../director";
-import { entitlement, type PassRow } from "../entitlement";
+import { entitlement } from "../entitlement";
 import { amaF1, kofiB1B2 } from "../fixtures";
 import { buildOfficerInstruction, officerFile } from "../officer-prompt";
 import { validateRewrite } from "../rewrite-validator";
@@ -57,42 +58,16 @@ describe("officer instruction", () => {
 });
 
 describe("entitlement", () => {
-  const d = (s: string) => new Date(`${s}T12:00:00Z`);
-  const now = d("2026-10-10");
-  const pass = (over: Partial<PassRow>): PassRow => ({
-    plan: "pass",
-    purchasedAt: d("2026-10-01"),
-    interviewDate: d("2026-10-30"),
-    hasAppointmentProof: false,
-    dateMoves: 0,
-    refunded: false,
-    ...over,
+  const none = { interviews: 0, drills: 0, expiresAt: null };
+  it("gives one free mock per account, then asks for credits", () => {
+    expect(entitlement({ credits: none, freeSessionsUsed: 0 }).kind).toBe("free");
+    expect(entitlement({ credits: none, freeSessionsUsed: 1 }).kind).toBe("none");
   });
-  const base = { fullSessionsToday: 0, fullSessionsSince: () => 0, freeSessionsUsed: 0, now };
-
-  it("gives one free mock per case, then asks for a pass", () => {
-    expect(entitlement({ ...base, passes: [] }).kind).toBe("free");
-    expect(entitlement({ ...base, passes: [], freeSessionsUsed: 1 }).kind).toBe("none");
-  });
-
-  it("gives full mocks with an active pass, up to the daily cap", () => {
-    expect(entitlement({ ...base, passes: [pass({})] }).kind).toBe("full");
-    expect(entitlement({ ...base, passes: [pass({})], fullSessionsToday: 3 }).kind).toBe("none");
-  });
-
-  it("ignores refunded passes", () => {
-    expect(entitlement({ ...base, passes: [pass({ refunded: true })], freeSessionsUsed: 1 }).kind).toBe("none");
-  });
-
-  it("limits a sprint to 3 mocks in 14 days", () => {
-    const sprint = pass({ plan: "sprint" });
-    expect(entitlement({ ...base, passes: [sprint], fullSessionsSince: () => 2 }).kind).toBe("full");
-    expect(entitlement({ ...base, passes: [sprint], fullSessionsSince: () => 3, freeSessionsUsed: 1 }).kind).toBe("none");
-    expect(entitlement({ ...base, passes: [sprint], now: d("2026-10-20"), freeSessionsUsed: 1 }).kind).toBe("none");
+  it("uses paid interviews before the free mock", () => {
+    const e = entitlement({ credits: { interviews: 2, drills: 0, expiresAt: new Date() }, freeSessionsUsed: 0 });
+    expect(e).toEqual({ kind: "full", reason: "2 interviews left" });
   });
 });
-
-import { mergeDraft } from "../draft";
 
 describe("mergeDraft", () => {
   it("fills gaps and flags disagreements instead of overwriting", () => {

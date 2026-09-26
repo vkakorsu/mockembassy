@@ -26,7 +26,7 @@
 | **Gemini 3.8 Flash TTS** | **Relevant, but not for the live conversation.** It takes about 13 s to first token. Use it for pre-rendered officer audio: the drill library, offline practice, "hear a strong answer", and marketing demos. See §3. |
 | **Transcripts and delivery analysis** | **Gemini 3.5 Transcribe** runs after the interview. It gives word timestamps for pause and pace analysis. Users can correct their transcript, because West-African-accented ASR is still error-prone. |
 | **Stack** | Next.js 16 on Vercel, Supabase (Postgres, RLS, Storage, Auth), LiveKit Cloud (WebRTC/Opus) with a Gemini Live agent worker, Inngest for jobs, Paystack for Mobile Money, and PostHog plus Sentry. |
-| **Pricing** | A **GHS 349 Interview Pass** (one-time payment, unlimited fair-use practice until your interview date) paid with MoMo. There's also a free tier, a GHS 149 Sprint, a GHS 599 Family Pass and a GHS 899 Expert tier. No subscriptions and no outcome-based pricing. About 75% contribution margin. See [`PRICING.md`](PRICING.md). |
+| **Pricing** | Packs of interview and drill credits, paid once with MoMo: **Prep GHS 149** (4 interviews, 20 drills), **Full Prep GHS 299** (10 interviews, 60 drills), **Top-up GHS 79**, usable for 6 months. A free tier. Nothing depends on the interview date. No subscriptions and no outcome-based pricing. About 70% margin in the worst case. See [`PRICING.md`](PRICING.md). |
 | **Trust rule** | We never promise approval, never write fake answers, and never imply US government affiliation. Real results come from rehearsing *your own true case* until you can say it clearly in 20 seconds. |
 | **Design** | One idea runs through the whole brand: **the window**. The look is editorial, cinematic and warm, with Ghanaian photography from a commissioned shoot, one signature interaction, and a performance budget that still passes Core Web Vitals on a mid-range Android on MTN 4G. |
 | **SEO/GEO** | First-party data is the moat: a live Accra wait-time tracker, a database of reported questions, and guides reviewed by former consular officers. Pages open with direct answers and use structured data and strong entity signals. Treat `llms.txt` as optional; Google doesn't use it. |
@@ -496,7 +496,7 @@ Track:
 **Full pricing model, unit economics and pricing tests: [`PRICING.md`](PRICING.md).** In summary:
 - **Free:** full Case Scan, one 90-second mock and 5 drills.
 - **Sprint:** GHS 149 for 3 mocks. The full amount counts toward a Pass upgrade.
-- **Interview Pass ⭐:** GHS 349, with unlimited fair-use practice until your interview date + 7 days. That's about 3.9% of F-1 government fees.
+- **Full Prep ⭐:** GHS 299 for 10 full interviews and 60 drills, usable for 6 months (superseded the date-based Interview Pass; see PRICING.md). That's about 3.3% of F-1 government fees.
 - **Family Pass:** GHS 599, including joint-interview mode.
 - **Pass + Coach:** GHS 899, including a 20-minute live mock with a certified Coach.
 - **Pass + Senior Expert:** GHS 1,499, with a former consular officer or senior visa professional.

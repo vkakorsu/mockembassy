@@ -3,14 +3,16 @@ export function Experts() {
     <section id="experts" aria-labelledby="experts-title" className="scroll-mt-4 border-b border-ink">
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-20 sm:px-8 lg:grid-cols-12 lg:py-28">
         <div className="lg:col-span-5">
-          <p className="label text-muted">Part 04 / 05</p>
+          <p className="label text-muted">
+            Part 04 / 05 · <span className="text-stamp">Coming soon</span>
+          </p>
           <h2 id="experts-title" className="font-display mt-3 text-[clamp(2.4rem,4.6vw,4rem)] uppercase">
             AI for the reps. People for judgement.
           </h2>
           <p className="mt-6 text-lg leading-relaxed">
-            When you want a person, a certified Okwan Coach or a Senior Expert, such as a former consular officer, joins
-            you at the same window. They play the officer first, then coach you face to face. What they flag comes back in
-            every AI session afterwards.
+            Soon, when you want a person, a certified Okwan Coach or a Senior Expert, such as a former consular officer,
+            will join you at the same window. They&rsquo;ll play the officer first, then coach you face to face, and what they flag will
+            come back in every AI session afterwards. It will be a separate booking, not part of a pack.
           </p>
         </div>
         <dl className="doc self-start lg:col-span-6 lg:col-start-7">

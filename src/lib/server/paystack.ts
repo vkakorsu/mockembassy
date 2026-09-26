@@ -1,33 +1,17 @@
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { PlanId } from "@/lib/domain/entitlement";
+import { creditExpiry, PACKS, type PackId } from "@/lib/domain/credits";
 import { env, requireEnv } from "@/lib/env";
-import { LAUNCH_PRICE_GHS, LAUNCH_PRICE_LIMIT, plans } from "@/lib/pricing";
+import { PURCHASABLE } from "@/lib/pricing";
 
 const API = "https://api.paystack.co";
 
-// Family passes need two linked cases; they are sold manually until that lands.
-export const PURCHASABLE: PlanId[] = ["sprint", "pass", "coach", "senior"];
+export { PURCHASABLE };
 
-/** Prices in pesewas. The Interview Pass has a launch price for the first N passes. */
-export async function priceFor(db: SupabaseClient, plan: PlanId): Promise<number> {
-  if (plan === "family") return 599_00;
-  const base = plans.find((p) => p.id === plan)?.priceGhs;
-  if (base === undefined) throw new Error(`Unknown plan ${plan}`);
-  if (plan === "pass") {
-    const { count } = await db.from("passes").select("id", { count: "exact", head: true }).eq("plan", "pass");
-    if ((count ?? 0) < LAUNCH_PRICE_LIMIT) return LAUNCH_PRICE_GHS * 100;
-  }
-  return base * 100;
-}
-
-/** Amounts we accept for a plan (guards against tampered metadata). */
-export function allowedAmounts(plan: PlanId): number[] {
-  if (plan === "pass") return [LAUNCH_PRICE_GHS * 100, 349_00];
-  if (plan === "family") return [599_00];
-  const base = plans.find((p) => p.id === plan)?.priceGhs;
-  return base === undefined ? [] : [base * 100];
+/** Price in pesewas. */
+export function priceFor(pack: PackId): number {
+  return PACKS[pack].priceGhs * 100;
 }
 
 async function paystack<T>(path: string, init?: RequestInit): Promise<T> {
@@ -50,7 +34,7 @@ export async function initializeTransaction(input: {
   amountPesewas: number;
   reference: string;
   callbackUrl: string;
-  metadata: { case_id: string; user_id: string; plan: PlanId };
+  metadata: { case_id: string; user_id: string; plan: PackId };
 }) {
   return paystack<{ authorization_url: string; reference: string }>("/transaction/initialize", {
     method: "POST",
@@ -71,7 +55,7 @@ export interface PaystackTransaction {
   reference: string;
   amount: number;
   currency: string;
-  metadata: { case_id?: string; user_id?: string; plan?: PlanId } | string | null;
+  metadata: { case_id?: string; user_id?: string; plan?: PackId } | string | null;
 }
 
 export function verifyTransaction(reference: string) {
@@ -88,15 +72,15 @@ export function isValidSignature(rawBody: string, signature: string | null): boo
 }
 
 /**
- * Idempotently turns a successful transaction into a pass. Used by both the
+ * Idempotently turns a successful transaction into a credit pack. Used by both the
  * webhook and the return page, whichever arrives first. Service client only.
  */
 export async function recordPayment(db: SupabaseClient, tx: PaystackTransaction): Promise<"recorded" | "duplicate" | "rejected"> {
   if (tx.status !== "success" || tx.currency !== "GHS") return "rejected";
   const meta = typeof tx.metadata === "string" ? JSON.parse(tx.metadata) : tx.metadata;
-  const plan = meta?.plan as PlanId | undefined;
+  const plan = meta?.plan as PackId | undefined;
   if (!meta?.case_id || !plan || !PURCHASABLE.includes(plan)) return "rejected";
-  if (!allowedAmounts(plan).includes(tx.amount)) return "rejected";
+  if (tx.amount !== priceFor(plan)) return "rejected";
 
   const { data: owner } = await db.from("cases").select("user_id").eq("id", meta.case_id).maybeSingle();
   if (!owner || owner.user_id !== meta.user_id) return "rejected";
@@ -106,6 +90,9 @@ export async function recordPayment(db: SupabaseClient, tx: PaystackTransaction)
     plan,
     paystack_reference: tx.reference,
     amount_pesewas: tx.amount,
+    interviews: PACKS[plan].interviews,
+    drills: PACKS[plan].drills,
+    expires_at: creditExpiry(new Date()).toISOString(),
   });
   if (error?.code === "23505") return "duplicate";
   if (error) throw error;

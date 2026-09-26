@@ -3,6 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { creditExpiry, PACKS } from "@/lib/domain/credits";
 import { features } from "@/lib/env";
 import { audit, requireAdmin } from "@/lib/server/admin";
 import { refundTransaction } from "@/lib/server/paystack";
@@ -35,10 +36,18 @@ export async function refundPass(userId: string, passId: string, formData: FormD
 export async function grantPass(userId: string, caseId: string, formData: FormData) {
   const { admin, db } = await requireAdmin();
   const reason = Reason.parse(formData.get("reason"));
-  const plan = z.enum(["sprint", "pass", "coach", "senior"]).parse(formData.get("plan"));
+  const plan = z.enum(["prep", "full", "topup"]).parse(formData.get("plan"));
   const reference = `comp_${randomUUID().replace(/-/g, "")}`;
   await audit(db, { adminId: admin.id, action: "grant_pass", targetId: caseId, reason, details: { plan, reference } });
-  await db.from("passes").insert({ case_id: caseId, plan, paystack_reference: reference, amount_pesewas: 0 });
+  await db.from("passes").insert({
+    case_id: caseId,
+    plan,
+    paystack_reference: reference,
+    amount_pesewas: 0,
+    interviews: PACKS[plan].interviews,
+    drills: PACKS[plan].drills,
+    expires_at: creditExpiry(new Date()).toISOString(),
+  });
   redirect(`/admin/users/${userId}?notice=granted`);
 }
 

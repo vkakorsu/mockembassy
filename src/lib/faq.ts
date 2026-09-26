@@ -18,7 +18,7 @@ export const faq = [
   },
   {
     q: "How do I pay?",
-    a: "With MTN MoMo, Telecel Cash, AirtelTigo Money or a card, in cedis, VAT included. It's one payment per interview, never a subscription. Family abroad can also gift you a pass by card.",
+    a: "With MTN MoMo, Telecel Cash, AirtelTigo Money or a card, in cedis, VAT included. It's one payment for a pack of interviews and drills, never a subscription, and there are no rules about your interview date.",
   },
   {
     q: "Is Okwan connected to the US Embassy?",

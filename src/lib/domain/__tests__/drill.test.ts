@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { planDrill, planSession } from "../director";
-import { DAILY_DRILLS, drillEntitlement, FREE_DRILLS_PER_ACCOUNT } from "../entitlement";
 import { amaF1 } from "../fixtures";
 import { buildOfficerInstruction } from "../officer-prompt";
 
@@ -24,16 +23,6 @@ describe("drills", () => {
     expect(planDrill({ ...base, seed: "d4" }, "f1.nope")).toBeNull();
   });
 
-  it("gives free drills, then unlimited-ish with a pass, without touching mocks", () => {
-    const noPass = { kind: "none" as const, reason: "Get a pass to keep practising." };
-    expect(drillEntitlement({ mock: noPass, drillsToday: 0, freeDrillsUsed: 0 }).kind).toBe("free");
-    expect(drillEntitlement({ mock: noPass, drillsToday: 0, freeDrillsUsed: FREE_DRILLS_PER_ACCOUNT }).kind).toBe("none");
-    const pass = { kind: "full" as const, reason: "Interview Pass active" };
-    expect(drillEntitlement({ mock: pass, drillsToday: DAILY_DRILLS - 1, freeDrillsUsed: 9 }).kind).toBe("full");
-    expect(drillEntitlement({ mock: pass, drillsToday: DAILY_DRILLS, freeDrillsUsed: 0 }).kind).toBe("none");
-    const mockCapped = { kind: "none" as const, reason: "Daily limit reached (3 full mocks). Come back tomorrow." };
-    expect(drillEntitlement({ mock: mockCapped, drillsToday: 0, freeDrillsUsed: 0 }).kind).toBe("full");
-  });
 });
 
 describe("fingerprints at the window", () => {

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { activatePassNow, reportOutcome, setInterviewDate, startDrill, startSession } from "@/app/app/actions";
+import { reportOutcome, setInterviewDate, startDrill, startSession } from "@/app/app/actions";
 import { Button, Card, Field, inputCls, Notice, PageTitle } from "@/components/app/ui";
 import { Checklist } from "@/components/case-report";
 import { MODE_INFO } from "@/lib/modes";
@@ -8,9 +8,8 @@ import { scanCase } from "@/lib/domain/case-scan";
 import { whatToBring } from "@/lib/domain/checklist";
 import { probeStatus } from "@/lib/domain/director";
 import { fillTemplate, isFillable, probesFor } from "@/lib/domain/probes";
-import { passWindow } from "@/lib/domain/pass";
 import { requireUser } from "@/lib/server/auth";
-import { caseEntitlement, getCase, latestProfile, pastSessions } from "@/lib/server/repo";
+import { caseCredits, caseEntitlement, getCase, latestProfile, pastSessions } from "@/lib/server/repo";
 import { readiness, readinessTopics } from "@/lib/domain/readiness";
 
 const OUTCOME: Record<string, { label: string; cls: string }> = {
@@ -27,6 +26,7 @@ const SEVERITY: Record<string, string> = {
 };
 
 const hasPassed = (d: Date) => d.getTime() < Date.now();
+const daysUntil = (d: Date) => Math.ceil((d.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
 
 export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
   const { id } = await props.params;
@@ -35,7 +35,7 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
   const caseRow = await getCase(supabase, id);
   if (!caseRow) notFound();
 
-  const [current, history, ent, { data: sessions }, { data: passes }, { data: docs }] = await Promise.all([
+  const [current, history, ent, { data: sessions }, credits, { data: docs }] = await Promise.all([
     latestProfile(supabase, id),
     pastSessions(supabase, id),
     caseEntitlement(supabase, caseRow),
@@ -47,7 +47,7 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
       .not("started_at", "is", null)
       .order("created_at", { ascending: false })
       .limit(20),
-    supabase.from("passes").select("*").eq("case_id", id).is("refunded_at", null),
+    caseCredits(supabase, id),
     supabase.from("documents").select("kind").eq("case_id", id),
   ]);
 
@@ -70,19 +70,7 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
         }))
     : [];
   const interview = caseRow.interview_at ? new Date(caseRow.interview_at) : null;
-  const pass = passes?.find((p) => p.plan !== "sprint");
-  const passWin = pass && interview
-    ? passWindow(
-        {
-          purchasedAt: new Date(pass.purchased_at),
-          activatedAt: pass.activated_at ? new Date(pass.activated_at) : undefined,
-          interviewDate: interview,
-          hasAppointmentProof: pass.has_appointment_proof,
-          dateMoves: pass.date_moves,
-        },
-        new Date(),
-      )
-    : null;
+  const daysToGo = interview ? daysUntil(interview) : null;
   const interviewPassed = interview ? hasPassed(interview) : false;
 
   return (
@@ -127,7 +115,7 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
                   ))}
                 </ul>
                 <Link href={`/app/cases/${id}/pass`} className="mt-6 inline-block rounded-[3px] bg-ink px-5 py-2.5 text-sm font-semibold text-on-ink hover:bg-stamp">
-                  See passes
+                  Get interviews
                 </Link>
               </>
             ) : (
@@ -252,37 +240,27 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
           )}
 
           <Card>
+            <h2 className="font-display text-2xl uppercase">Interviews left</h2>
+            <p className="font-display mt-2 text-4xl tabular">
+              {credits.interviews} <span className="text-base text-muted">interviews</span> · {credits.drills}{" "}
+              <span className="text-base text-muted">drills</span>
+            </p>
+            {credits.expiresAt && <p className="mt-1 text-xs text-muted">Use by {credits.expiresAt.toDateString()}.</p>}
+            <Link href={`/app/cases/${id}/pass`} className="mt-3 inline-block text-sm underline underline-offset-4">
+              {credits.interviews || credits.drills ? "Get more" : "Get interviews"}
+            </Link>
+          </Card>
+
+          <Card>
             <h2 className="font-display text-2xl uppercase">Interview date</h2>
+            {daysToGo !== null && daysToGo >= 0 && (
+              <p className="mt-1 text-sm">{daysToGo === 0 ? "Today. You've got this." : `${daysToGo} day${daysToGo === 1 ? "" : "s"} to go.`}</p>
+            )}
             <form action={setInterviewDate.bind(null, id)} className="mt-4 flex gap-2">
               <input name="interviewDate" type="date" required defaultValue={interview ? interview.toISOString().slice(0, 10) : ""} className={inputCls} />
               <Button variant="ghost">Save</Button>
             </form>
-            <p className="mt-2 text-xs text-muted">Upload your appointment confirmation to unlock the full pass window.</p>
-          </Card>
-
-          <Card>
-            <h2 className="font-display text-2xl uppercase">Pass</h2>
-            {pass ? (
-              <div className="mt-2 text-sm">
-                <p className="capitalize">{pass.plan === "pass" ? "Interview Pass" : `Pass + ${pass.plan}`}</p>
-                {passWin && (
-                  <p className="mt-1 text-muted">
-                    {passWin.status === "active" && `Active until ${passWin.endsAt.toDateString()}.`}
-                    {passWin.status === "pending" && `Starts ${passWin.startsAt.toDateString()}.`}
-                    {passWin.status === "expired" && "Expired."}
-                  </p>
-                )}
-                {passWin?.status === "pending" && (
-                  <form action={activatePassNow.bind(null, id, pass.id)} className="mt-3">
-                    <Button variant="ghost">Activate now</Button>
-                  </form>
-                )}
-              </div>
-            ) : (
-              <Link href={`/app/cases/${id}/pass`} className="mt-3 inline-block text-sm underline underline-offset-4">
-                See passes
-              </Link>
-            )}
+            <p className="mt-2 text-xs text-muted">For your countdown. It doesn&rsquo;t affect what you can use.</p>
           </Card>
 
           {interviewPassed && (

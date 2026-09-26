@@ -70,7 +70,7 @@ export default async function AdminOverview() {
         </div>
         <div className="grid grid-cols-2 gap-4">
           <Stat
-            label="Bought a pass"
+            label="Bought a pack"
             value={practising.size ? `${Math.round((converted / practising.size) * 100)}%` : "–"}
             sub={`of applicants who practised in the last 14 days (${converted} of ${practising.size})`}
           />
@@ -99,7 +99,7 @@ export default async function AdminOverview() {
         <Table
           head={["Plan", "Sold", "Total"]}
           rows={[...byPlan].sort((a, b) => b[1].gross - a[1].gross).map(([plan, v]) => [plan, v.n, ghs(v.gross)])}
-          empty="No paid passes yet."
+          empty="No paid packs yet."
         />
       </Section>
     </>

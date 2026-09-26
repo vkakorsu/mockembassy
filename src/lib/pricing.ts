@@ -1,67 +1,44 @@
-/** Single source of truth for plans (docs/PRICING.md). Prices in GHS, VAT inclusive. */
+/** Single source of truth for what's on sale (docs/PRICING.md). Prices in GHS, VAT inclusive. */
+import { CREDIT_VALIDITY_DAYS, PACKS, type PackId } from "@/lib/domain/credits";
+import { FREE_DRILLS_PER_ACCOUNT } from "@/lib/domain/entitlement";
 
 export interface Plan {
-  id: string;
+  id: "free" | PackId;
   name: string;
   priceGhs: number;
-  cadence: string;
   summary: string;
   features: string[];
   featured?: boolean;
 }
 
-export const LAUNCH_PRICE_GHS = 249;
-export const LAUNCH_PRICE_LIMIT = 1000;
+const months = Math.round(CREDIT_VALIDITY_DAYS / 30.5);
+const pack = (id: PackId, summary: string, featured = false): Plan => ({
+  id,
+  name: PACKS[id].name,
+  priceGhs: PACKS[id].priceGhs,
+  summary,
+  features: [
+    `${PACKS[id].interviews} full interviews (real, practice or dress rehearsal)`,
+    `${PACKS[id].drills} one-question drills`,
+    "Full debriefs, playback and readiness",
+    `Use them within ${months} months`,
+  ],
+  featured,
+});
 
 export const plans: Plan[] = [
   {
     id: "free",
     name: "Free",
     priceGhs: 0,
-    cadence: "forever",
-    summary: "See how the officer will read your case.",
-    features: ["Full Case Scan", "One 90-second mock", "Summary debrief", "5 drills"],
+    summary: "See how the officer will read your case, and try one interview.",
+    features: ["Case Scan and what-to-bring list", "One 90-second interview with a full debrief", `${FREE_DRILLS_PER_ACCOUNT} drills`],
   },
-  {
-    id: "sprint",
-    name: "Sprint",
-    priceGhs: 149,
-    cadence: "14 days",
-    summary: "For interviews less than a week away.",
-    features: ["3 full mocks", "Full debriefs", "The whole GH₵149 counts toward a Pass upgrade"],
-  },
-  {
-    id: "pass",
-    name: "Interview Pass",
-    priceGhs: 349,
-    cadence: "until your interview",
-    summary: "Unlimited practice until your interview, plus 7 days.",
-    features: [
-      "Unlimited full mocks (fair use)",
-      "A new officer every session",
-      "Full debriefs and Readiness",
-      "Dress rehearsal before the day",
-      "WhatsApp drills",
-      "Pass reactivates free after a refusal",
-    ],
-    featured: true,
-  },
-  {
-    id: "coach",
-    name: "Pass + Coach",
-    priceGhs: 899,
-    cadence: "until your interview",
-    summary: "Add a 20-minute live mock with a certified human coach.",
-    features: ["Everything in the Pass", "Live mock with a certified Coach", "Coach notes shape your next sessions"],
-  },
-  {
-    id: "senior",
-    name: "Pass + Senior Expert",
-    priceGhs: 1499,
-    cadence: "until your interview",
-    summary: "A former consular officer or senior visa expert reviews your case.",
-    features: ["Everything in the Pass", "Written case review", "25-minute live mock", "Limited slots"],
-  },
+  pack("prep", "Enough to find your weak answers and fix them."),
+  pack("full", "Enough to get every key answer solid with different officers, then a dress rehearsal.", true),
+  pack("topup", "More interviews when you need them. Adds to what you have."),
 ];
+
+export const PURCHASABLE: PackId[] = ["prep", "full", "topup"];
 
 export const formatGhs = (n: number) => (n === 0 ? "Free" : `GH₵${n.toLocaleString("en-GH")}`);
