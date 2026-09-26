@@ -10,7 +10,6 @@ import { PackingList } from "@/components/app/packing-list";
 import { MODE_INFO } from "@/lib/modes";
 import { scanCase } from "@/lib/domain/case-scan";
 import { whatToBring } from "@/lib/domain/checklist";
-import { probeStatus } from "@/lib/domain/director";
 import { fillTemplate, isFillable, probesFor } from "@/lib/domain/probes";
 import { requireUser } from "@/lib/server/auth";
 import { caseDrillEntitlement, caseEntitlement, getCase, latestProfile, pastSessions } from "@/lib/server/repo";
@@ -59,21 +58,22 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
 
   const flags = current ? scanCase(current.profile) : [];
   const topics = current ? readinessTopics(current.profile) : [];
-  const relevant = topics.map((t) => t.id);
   const ready = readiness(history, topics);
-  // Topics to drill: answered weakly last time, then ones still improving.
+  // Topics to drill, most valuable first (src/lib/domain/readiness.ts): weak answers, then
+  // practised topics that aren't solid yet. Untested ones come up in interviews.
   const toFix = current
-    ? probesFor(caseRow.visa_type)
-        .filter((p) => relevant.includes(p.id))
-        .map((p) => ({ probe: p, status: probeStatus(p.id, history) }))
-        .filter((x) => x.status === "weak" || x.status === "improving")
-        .sort((a, b) => (a.status === "weak" ? 0 : 1) - (b.status === "weak" ? 0 : 1))
+    ? ready.next
+        .map((id) => ready.topics.find((t) => t.id === id)!)
+        .filter((t) => t.status === "weak" || t.status === "improving")
         .slice(0, 4)
-        .map(({ probe, status }) => ({
-          id: probe.id,
-          status,
-          question: fillTemplate(probe.entry.find((t) => isFillable(t, current.profile)) ?? probe.entry[0], current.profile),
-        }))
+        .map((t) => {
+          const probe = probesFor(caseRow.visa_type).find((p) => p.id === t.id)!;
+          return {
+            id: t.id,
+            status: t.status,
+            question: fillTemplate(probe.entry.find((e) => isFillable(e, current.profile)) ?? probe.entry[0], current.profile),
+          };
+        })
     : [];
   const interview = caseRow.interview_at ? new Date(caseRow.interview_at) : null;
   const daysToGo = caseRow.interview_at ? daysUntil(caseRow.interview_at) : null;

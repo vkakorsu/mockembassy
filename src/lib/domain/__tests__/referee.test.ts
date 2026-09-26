@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { planSession } from "../director";
 import { amaF1 } from "../fixtures";
-import { createRefereeState, decide, finalJudgements, recordTurn, shouldEnd, uncoveredCritical, type TurnEvaluation } from "../referee";
+import { createRefereeState, decide, FACT_CHECK_ID, finalJudgements, recordTurn, shouldEnd, uncoveredCritical, type TurnEvaluation } from "../referee";
 
 function stateWith(turns: Omit<TurnEvaluation, "durationSec">[], scepticism = 0.5) {
   const plan = planSession({ profile: amaF1, pastSessions: [], readiness: 0.3, mode: "real", seed: "ref" });
@@ -115,5 +115,16 @@ describe("early decisions", () => {
     const tough = (p: (typeof plans)[number]) => p.officer.traits.scepticism - p.officer.traits.patience;
     const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
     expect(avg(fast.map(tough))).toBeGreaterThan(avg(plans.filter((p) => !p.decidesFast).map(tough)));
+  });
+});
+
+describe("a quick check that contradicts the file", () => {
+  it("refuses like any key contradiction, even when every topic went well", () => {
+    const plan = planSession({ profile: amaF1, pastSessions: [], readiness: 0.3, mode: "real", seed: "facts" });
+    let s = createRefereeState({ ...plan, officer: { ...plan.officer, traits: { ...plan.officer.traits, scepticism: 0 } } });
+    for (const p of plan.probes) s = recordTurn(s, { probeId: p.probeId, quality: "strong", durationSec: 10 });
+    expect(decide(s).outcome).toBe("approved");
+    s = recordTurn(s, { probeId: FACT_CHECK_ID, quality: "contradiction", durationSec: 0, inconsistency: { field: "marital status", said: "single", onFile: "married" } });
+    expect(decide(s).outcome).toBe("refused_214b");
   });
 });

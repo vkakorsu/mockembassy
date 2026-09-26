@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Countdown } from "@/components/app/countdown";
 import { Guilloche } from "@/components/guilloche";
-import type { Readiness } from "@/lib/domain/readiness";
+import { LEVEL_LABELS, type Readiness } from "@/lib/domain/readiness";
 
 /** The top of a case: who and what it's for, readiness, and the interview countdown. */
 export function CaseHeader({
@@ -49,15 +49,24 @@ export function CaseHeader({
         </div>
         <div className="p-6 sm:p-8">
           <p className="label text-muted">Readiness</p>
-          <p className="font-display mt-1 text-5xl tabular">{Math.round(readiness.score * 100)}%</p>
+          <p className="mt-1 flex flex-wrap items-baseline gap-x-3">
+            <span className="font-display text-5xl tabular">{Math.round(readiness.score * 100)}%</span>
+            <span className="text-sm font-semibold">{LEVEL_LABELS[readiness.level]}</span>
+          </p>
           <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-fg/10">
             <div className="h-full rounded-full bg-stamp" style={{ width: `${Math.round(readiness.score * 100)}%` }} />
           </div>
-          <p className="mt-2 text-xs leading-relaxed text-muted" title="A topic counts half after one good answer and fully once a different officer agrees; a weak answer resets it. Key topics count double.">
-            {readiness.total
-              ? `${readiness.answeredWell} of ${readiness.total} topics answered well · ${readiness.confirmed} confirmed by a second officer`
-              : "Confirm your facts to see the topics you'll be tested on."}
+          <p
+            className="mt-2 text-xs leading-relaxed text-muted"
+            title="How prepared you are, not your chance of approval. Each topic counts by how likely it is to come up and whether it decides the case. Recent answers count most, tougher officers and full interviews count more than drills, and answers fade after a few weeks. A topic is solid once two officers, one of them tough, heard it answered well."
+          >
+            {!readiness.total
+              ? "Confirm your facts to see the topics you'll be tested on."
+              : readiness.caps[0] && Math.round(readiness.score * 100) >= Math.round(readiness.caps[0].max * 100)
+                ? readiness.caps[0].reason
+                : `${readiness.confirmed} of ${readiness.total} topics solid · ${readiness.answeredWell} answered well`}
           </p>
+          <p className="mt-1 text-[11px] text-muted">How prepared you are, not a chance of approval.</p>
         </div>
         <div className="p-6 sm:p-8">
           <Countdown interviewAt={interviewAt} days={days} setDate={setDate} />

@@ -13,12 +13,13 @@ export const SCAN_STORAGE_KEY = "okwan:scan:v1";
 
 type Result = ReturnType<typeof run>;
 
-function run(input: QuickScanInput) {
-  const { profile, draft } = quickScanProfile(input);
+function run(input: QuickScanInput, ghsPerUsd?: number) {
+  const { profile, draft } = quickScanProfile(input, ghsPerUsd);
   return { flags: scanCase(profile), questions: likelyQuestions(profile), checklist: whatToBring(profile), draft };
 }
 
-export function QuickScan({ signedIn }: { signedIn: boolean }) {
+/** `ghsPerUsd`: the server's configured rate (FX_GHS_PER_USD), so the scan converts cedis like the rest of the app. */
+export function QuickScan({ signedIn, ghsPerUsd }: { signedIn: boolean; ghsPerUsd?: number }) {
   const [visa, setVisa] = useState<"F1" | "B1B2">("F1");
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +34,7 @@ export function QuickScan({ signedIn }: { signedIn: boolean }) {
       return;
     }
     setError(null);
-    const r = run(parsed.data);
+    const r = run(parsed.data, ghsPerUsd);
     setResult(r);
     try {
       localStorage.setItem(SCAN_STORAGE_KEY, JSON.stringify({ savedAt: Date.now(), draft: r.draft }));

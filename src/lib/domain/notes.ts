@@ -39,6 +39,7 @@ export const DOCUMENT_LABEL: Record<string, string> = {
   ds2019: "DS-2019",
   admission_letter: "admission letter",
   scholarship_letter: "scholarship letter",
+  academic_record: "transcript",
   bank_statement: "bank statement",
   sponsor_letter: "sponsor letter",
   employment_letter: "employment letter",
@@ -66,6 +67,7 @@ export function matchDocumentKind(requested: string, available: readonly string[
     invitation_letter: ["invitation", "invite"],
     scholarship_letter: ["scholarship", "financial aid", "award", "grant", "assistantship", "bursary"],
     admission_letter: ["admission", "offer", "acceptance"],
+    academic_record: ["transcript", "result", "grade", "certificate", "toefl", "ielts", "gmat", "wassce", "test score"],
     i20: ["i 20", "i20"],
     ds160: ["ds 160", "ds160", "application"],
   };

@@ -53,6 +53,7 @@ export function whatToBring(c: CaseProfile): ChecklistItem[] {
         label: "Transcripts, WASSCE results, certificates and test scores (SAT, TOEFL, IELTS, Duolingo)",
         why: "Officers may check your academic preparation and English.",
         group: "Likely to be asked for",
+        docKind: "academic_record",
       },
       { id: "admission", label: "Admission letter", why: "Backs up your answers about the school.", group: "Good to have", docKind: "admission_letter" },
     );

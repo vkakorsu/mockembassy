@@ -1,5 +1,6 @@
 import { PageHead, Section, Stat, Table } from "@/components/admin/stat";
 import type { SessionPlan } from "@/lib/domain/director";
+import { officerStyle, REAL_OFFICER_STYLE } from "@/lib/domain/officer-style";
 import { getProbe } from "@/lib/domain/probes";
 import { daysAgo, requireAdmin } from "@/lib/server/admin";
 import { DEBRIEF_STATUS_LABELS, outcomeLabel, topicLabel } from "@/lib/labels";
@@ -11,7 +12,7 @@ const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 100)}%` : "�
 export default async function AdminQuality() {
   const { db } = await requireAdmin();
   const since = daysAgo(30);
-  const [{ data: sessionRows }, { data: probeRows }, { data: latencyRows }] = await Promise.all([
+  const [{ data: sessionRows }, { data: probeRows }, { data: latencyRows }, { data: officerRows }] = await Promise.all([
     // Sessions that never started (a mode clicked, then left) would skew every figure.
     db
       .from("sessions")
@@ -26,7 +27,20 @@ export default async function AdminQuality() {
       .not("reply_latency_ms", "is", null)
       .gte("sessions.created_at", since)
       .limit(50000),
+    // What the officers said, to compare with real officers (drills are one question, so left out).
+    db
+      .from("turns")
+      .select("session_id, officer_text, sessions!inner(created_at, mode)")
+      .not("officer_text", "is", null)
+      .neq("sessions.mode", "drill")
+      .gte("sessions.created_at", since)
+      .limit(50000),
   ]);
+  const style = officerStyle((officerRows ?? []).map((r) => String(r.officer_text)));
+  const perSession = new Map<string, number>();
+  for (const r of officerRows ?? []) perSession.set(r.session_id as string, (perSession.get(r.session_id as string) ?? 0) + 1);
+  const counts = [...perSession.values()].sort((a, b) => a - b);
+  const medianLines = counts.length ? counts[Math.floor(counts.length / 2)] : null;
   const latencies = (latencyRows ?? []).map((r) => r.reply_latency_ms as number).sort((a, b) => a - b);
   const q = (p: number) => (latencies.length ? `${(latencies[Math.min(latencies.length - 1, Math.floor(p * latencies.length))] / 1000).toFixed(1)} s` : "–");
   const sessions = sessionRows ?? [];
@@ -65,7 +79,7 @@ export default async function AdminQuality() {
     try {
       return getProbe(id).entry[0].replace(/\{\w+\}/g, "…");
     } catch {
-      return "Built from the applicant's own documents";
+      return id.startsWith("case:") ? "Written for the applicant from their file" : "Built from the applicant's own documents";
     }
   };
 
@@ -79,6 +93,21 @@ export default async function AdminQuality() {
         <Stat label="Average length" value={`${Math.floor(avgSecs / 60)}:${String(avgSecs % 60).padStart(2, "0")}`} sub="min:sec" />
         <Stat label="Officer reply time" value={q(0.5)} sub={`median after an answer · 90th percentile ${q(0.9)}`} />
       </div>
+
+      <Section
+        title="Does the officer talk like a real one?"
+        note="Compared with 335 officer lines from real West African F-1 interviews (docs/INTERVIEW-REALISM.md §10). Real officers are terse: short lines, many of them reactions or instructions rather than questions. Well above these numbers means the officer sounds like an interviewer."
+      >
+        <Table
+          head={["Measure", "Our officers", "Real officers"]}
+          rows={[
+            ["Words per line (median)", style?.medianWords ?? "–", REAL_OFFICER_STYLE.medianWords],
+            ["Words per line (90th percentile)", style?.p90Words ?? "–", REAL_OFFICER_STYLE.p90Words],
+            ["Lines that aren't questions", style ? pct(style.nonQuestionShare, 1) : "–", pct(REAL_OFFICER_STYLE.nonQuestionShare, 1)],
+            ["Officer lines per interview (median)", medianLines ?? "–", REAL_OFFICER_STYLE.medianLinesPerInterview],
+          ]}
+        />
+      </Section>
 
       <Section title="Simulated outcomes" note="Share of finished sessions. If nearly everyone is approved or refused, the Referee's thresholds need tuning.">
         <Table head={["Outcome", "Sessions", "Share"]} rows={outcomes.map(([o, n]) => [outcomeLabel(o), n, pct(n, ended.length)])} />

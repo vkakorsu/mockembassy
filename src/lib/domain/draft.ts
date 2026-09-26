@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PriorRefusal, Sponsor, UsContact, VisaType } from "./case";
+import { PriorRefusal, Sponsor, TestScore, UsContact, UsVisit, VisaType } from "./case";
 import { ExtractedNote } from "./notes";
 
 const Money = z.object({ amount: z.number(), currency: z.string().max(8) });
@@ -19,6 +19,9 @@ export const ExtractedFacts = z.object({
   applicant: z
     .object({
       firstName: z.string().max(60),
+      fullName: z.string().max(120),
+      dateOfBirth: z.string().max(10),
+      nationality: z.string().max(60),
       age: z.number().int(),
       maritalStatus: z.enum(["single", "married", "divorced", "widowed"]),
       children: z.number().int(),
@@ -35,6 +38,18 @@ export const ExtractedFacts = z.object({
       i20Year1CostUsd: z.number(),
       scholarshipUsd: z.number(),
       currentOccupation: z.string().max(160),
+      schoolsAppliedTo: z.number().int(),
+      admissionsReceived: z.number().int(),
+    })
+    .partial()
+    .optional(),
+  education: z
+    .object({
+      lastSchool: z.string().max(160),
+      lastProgram: z.string().max(160),
+      graduationYear: z.number().int(),
+      result: z.string().max(80),
+      tests: z.array(TestScore).max(6),
     })
     .partial()
     .optional(),
@@ -44,6 +59,11 @@ export const ExtractedFacts = z.object({
       durationDays: z.number().int(),
       hostRelationship: z.string().max(60),
       hostCity: z.string().max(80),
+      arrivalDate: z.string().max(10),
+      stayingAt: z.string().max(160),
+      event: z.string().max(160),
+      travellingWith: z.string().max(120),
+      tripCostUsd: z.number(),
     })
     .partial()
     .optional(),
@@ -63,14 +83,29 @@ export const ExtractedFacts = z.object({
       employer: z.string().max(160),
       role: z.string().max(120),
       yearsEmployed: z.number(),
+      monthlyIncomeGhs: z.number(),
+      leaveApproved: z.boolean(),
       ownsBusiness: z.boolean(),
+      businessName: z.string().max(160),
+      businessYears: z.number(),
       ownsProperty: z.boolean(),
+      propertyDetail: z.string().max(160),
+    })
+    .partial()
+    .optional(),
+  family: z
+    .object({
+      spouseOccupation: z.string().max(120),
+      fatherOccupation: z.string().max(120),
+      motherOccupation: z.string().max(120),
+      siblings: z.number().int(),
     })
     .partial()
     .optional(),
   history: z
     .object({
       priorUsVisits: z.number().int(),
+      usVisits: z.array(UsVisit).max(20),
       otherCountriesVisited: z.array(z.string().max(60)).max(40),
       priorRefusals: z.array(PriorRefusal).max(10),
     })

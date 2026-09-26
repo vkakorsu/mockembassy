@@ -12,6 +12,7 @@ const KINDS: { value: string; label: string; visa?: "F1" | "B1B2" }[] = [
   { value: "i20", label: "I-20", visa: "F1" },
   { value: "admission_letter", label: "Admission letter", visa: "F1" },
   { value: "scholarship_letter", label: "Scholarship or financial aid letter", visa: "F1" },
+  { value: "academic_record", label: "Transcript, certificate or test scores", visa: "F1" },
   { value: "bank_statement", label: "Bank statement" },
   { value: "sponsor_letter", label: "Sponsor letter" },
   { value: "employment_letter", label: "Employment letter" },

@@ -9,17 +9,29 @@ import { DOCUMENT_READS_PER_DAY, MAX_DOCUMENTS } from "@/lib/domain/abuse";
 import { CaseProfile } from "@/lib/domain/case";
 import { CHECKLIST_ID } from "@/lib/domain/checklist";
 import { ExtractedFacts } from "@/lib/domain/draft";
+import { profileCandidate } from "@/lib/domain/profile-input";
 import { NOTE_PROBE_PREFIX, planDrill, planSession, type SessionMode } from "@/lib/domain/director";
-import type { CaseNote, NoteCategory } from "@/lib/domain/notes";
+import { CASE_PROBE_PREFIX, usableCaseQuestions } from "@/lib/domain/case-questions";
+import { isOnScreen, type CaseNote, type NoteCategory } from "@/lib/domain/notes";
+import { officerFileText } from "@/lib/domain/officer-prompt";
 import type { PackId } from "@/lib/domain/credits";
 import { FREE_MOCK_SECONDS } from "@/lib/domain/entitlement";
 import { MAX_CASES_PER_ACCOUNT, sameApplicant } from "@/lib/domain/identity";
 import { readinessTopics } from "@/lib/domain/readiness";
 import { env, features } from "@/lib/env";
 import { requireUser } from "@/lib/server/auth";
-import { runDebrief, runExtraction } from "@/lib/server/jobs";
+import { runCaseQuestions, runDebrief, runExtraction } from "@/lib/server/jobs";
 import { initializeTransaction, priceFor, PURCHASABLE } from "@/lib/server/paystack";
-import { caseDrillEntitlement, caseEntitlement, getCase, latestProfile, pastSessions, readinessFrom } from "@/lib/server/repo";
+import {
+  caseDrillEntitlement,
+  caseEntitlement,
+  getCase,
+  latestProfile,
+  pastSessions,
+  readinessFrom,
+  reportedShares,
+  type CaseRow,
+} from "@/lib/server/repo";
 import { createServiceClient } from "@/lib/supabase/server";
 
 const PLANNER_VERSION = "director-v1";
@@ -97,7 +109,7 @@ export async function setInterviewDate(caseId: string, formData: FormData) {
 /* ------------------------------------------------------------- documents */
 
 const DocKind = z.enum([
-  "ds160", "i20", "ds2019", "admission_letter", "scholarship_letter", "bank_statement", "sponsor_letter", "employment_letter",
+  "ds160", "i20", "ds2019", "admission_letter", "scholarship_letter", "academic_record", "bank_statement", "sponsor_letter", "employment_letter",
   "business_registration", "property", "invitation_letter", "refusal_letter", "appointment_confirmation",
   "passport_travel_page", "other",
 ]);
@@ -167,8 +179,6 @@ export async function deleteDocument(documentId: string) {
 
 /* --------------------------------------------------------------- profile */
 
-const num = (v: FormDataEntryValue | null) => (v === null || v === "" ? undefined : Number(v));
-const str = (v: FormDataEntryValue | null) => (v === null || String(v).trim() === "" ? undefined : String(v).trim());
 const list = (v: FormDataEntryValue | null) =>
   String(v ?? "")
     .split(",")
@@ -183,70 +193,11 @@ export async function confirmProfile(caseId: string, _prev: ConfirmState, f: For
   if (!caseRow) return { error: "Case not found." };
   const current = await latestProfile(supabase, caseId);
 
-  const sponsorRel = str(f.get("sponsor.relationship"));
-  const usRel = str(f.get("usContact.relationship"));
-  const refusalYear = num(f.get("refusal.year"));
-  const candidate = {
-    version: (current?.version ?? 0) + 1,
+  const candidate = profileCandidate(f.entries(), {
     visaType: caseRow.visa_type,
-    applicant: {
-      firstName: str(f.get("applicant.firstName")) ?? caseRow.applicant_name.split(" ")[0],
-      age: num(f.get("applicant.age")),
-      maritalStatus: str(f.get("applicant.maritalStatus")) ?? "single",
-      children: num(f.get("applicant.children")) ?? 0,
-      city: str(f.get("applicant.city")) ?? "",
-    },
-    study:
-      caseRow.visa_type === "F1"
-        ? {
-            school: str(f.get("study.school")),
-            program: str(f.get("study.program")),
-            level: str(f.get("study.level")) ?? "masters",
-            startTerm: str(f.get("study.startTerm")) ?? "",
-            i20Year1CostUsd: num(f.get("study.i20Year1CostUsd")),
-            scholarshipUsd: num(f.get("study.scholarshipUsd")),
-            currentOccupation: str(f.get("study.currentOccupation")),
-            postStudyPlan: str(f.get("study.postStudyPlan")),
-          }
-        : undefined,
-    visit:
-      caseRow.visa_type === "B1B2"
-        ? {
-            purpose: str(f.get("visit.purpose")),
-            durationDays: num(f.get("visit.durationDays")),
-            hostRelationship: str(f.get("visit.hostRelationship")),
-            hostCity: str(f.get("visit.hostCity")),
-          }
-        : undefined,
-    funding: {
-      sponsors: sponsorRel
-        ? [
-            {
-              relationship: sponsorRel,
-              occupation: str(f.get("sponsor.occupation")),
-              annualIncomeUsd: num(f.get("sponsor.annualIncomeUsd")),
-            },
-          ]
-        : [],
-      liquidFundsUsd: num(f.get("funding.liquidFundsUsd")) ?? 0,
-      recentLargeDepositUsd: num(f.get("funding.recentLargeDepositUsd")),
-    },
-    ties: {
-      employer: str(f.get("ties.employer")),
-      role: str(f.get("ties.role")),
-      yearsEmployed: num(f.get("ties.yearsEmployed")),
-      ownsBusiness: f.get("ties.ownsBusiness") === "on",
-      ownsProperty: f.get("ties.ownsProperty") === "on",
-    },
-    history: {
-      priorUsVisits: num(f.get("history.priorUsVisits")) ?? 0,
-      otherCountriesVisited: list(f.get("history.otherCountriesVisited")),
-      priorRefusals: refusalYear ? [{ year: refusalYear, section: str(f.get("refusal.section")) ?? "214b" }] : [],
-    },
-    usContacts: usRel
-      ? [{ relationship: usRel, city: str(f.get("usContact.city")), status: str(f.get("usContact.status")) ?? "unknown" }]
-      : [],
-  };
+    version: (current?.version ?? 0) + 1,
+    fallbackFirstName: caseRow.applicant_name.split(" ")[0],
+  });
 
   const parsed = CaseProfile.safeParse(candidate);
   if (!parsed.success) {
@@ -269,10 +220,35 @@ export async function confirmProfile(caseId: string, _prev: ConfirmState, f: For
   const { _conflicts: _resolved, ...draft } = (caseRow.draft_profile ?? {}) as Record<string, unknown>;
   void _resolved;
   await createServiceClient().from("cases").update({ draft_profile: draft }).eq("id", caseId);
+  // Questions only this applicant would get, written from the new facts.
+  if (features.gemini && features.supabaseAdmin) after(() => runCaseQuestions(caseId));
   redirect(`/app/cases/${caseId}?notice=profile-confirmed`);
 }
 
 /* -------------------------------------------------------------- sessions */
+
+/** What the Director needs besides the profile and history: notes, folder, per-applicant questions, Accra reports. */
+async function planContext(supabase: Awaited<ReturnType<typeof requireUser>>["supabase"], caseRow: CaseRow, profile: CaseProfile) {
+  const [{ data: noteRows }, { data: docRows }, shares] = await Promise.all([
+    supabase.from("case_notes").select("id, source_kind, category, text").eq("case_id", caseRow.id).eq("status", "confirmed"),
+    supabase.from("documents").select("kind").eq("case_id", caseRow.id),
+    reportedShares(caseRow.visa_type),
+  ]);
+  const notes: CaseNote[] = (noteRows ?? []).map((n) => ({
+    id: n.id,
+    sourceKind: n.source_kind,
+    category: n.category as NoteCategory,
+    text: n.text,
+  }));
+  const fileText = officerFileText(profile, notes.filter((n) => isOnScreen(n.sourceKind)).map((n) => n.text));
+  return {
+    notes,
+    folder: (docRows ?? []).map((d) => d.kind as string),
+    // Checked again against today's file; a stored question is never trusted on its own.
+    caseQuestions: usableCaseQuestions(caseRow.case_questions, profile, fileText),
+    reportedShares: shares,
+  };
+}
 
 export async function startSession(caseId: string, requestedMode: SessionMode) {
   const { supabase } = await requireUser();
@@ -288,29 +264,18 @@ export async function startSession(caseId: string, requestedMode: SessionMode) {
   const topics = readinessTopics(current.profile);
   const mode: SessionMode = ent.kind === "free" ? "real" : requestedMode;
   const seed = randomUUID();
-  const [{ data: noteRows }, { data: docRows }] = await Promise.all([
-    supabase.from("case_notes").select("id, source_kind, category, text").eq("case_id", caseId).eq("status", "confirmed"),
-    supabase.from("documents").select("kind").eq("case_id", caseId),
-  ]);
-  const notes: CaseNote[] = (noteRows ?? []).map((n) => ({
-    id: n.id,
-    sourceKind: n.source_kind,
-    category: n.category as NoteCategory,
-    text: n.text,
-  }));
   const plan = planSession({
     profile: current.profile,
     pastSessions: history,
     readiness: readinessFrom(history, topics),
     mode,
     seed,
-    notes,
-    folder: (docRows ?? []).map((d) => d.kind as string),
+    ...(await planContext(supabase, caseRow, current.profile)),
   });
   if (ent.kind === "free") {
     plan.targetDurationSec = FREE_MOCK_SECONDS;
-    // Two topics; if there's a question from their own documents, it's one of them.
-    const own = plan.probes.find((p) => p.probeId.startsWith(NOTE_PROBE_PREFIX));
+    // Two topics; if there's a question only they would get, it's one of them.
+    const own = plan.probes.find((p) => p.probeId.startsWith(NOTE_PROBE_PREFIX) || p.probeId.startsWith(CASE_PROBE_PREFIX));
     const rest = plan.probes.filter((p) => p !== own);
     plan.probes = own ? [rest.find((p) => p.critical) ?? rest[0], own] : rest.slice(0, 2);
   }
@@ -350,11 +315,7 @@ export async function startDrill(caseId: string, probeId: string) {
   const ent = await caseDrillEntitlement(supabase, caseRow);
   if (ent.kind === "none") redirect(`/app/cases/${caseId}/pass?reason=${encodeURIComponent(ent.reason)}`);
 
-  const [history, { data: noteRows }, { data: docRows }] = await Promise.all([
-    pastSessions(supabase, caseId),
-    supabase.from("case_notes").select("id, source_kind, category, text").eq("case_id", caseId).eq("status", "confirmed"),
-    supabase.from("documents").select("kind").eq("case_id", caseId),
-  ]);
+  const [history, context] = await Promise.all([pastSessions(supabase, caseId), planContext(supabase, caseRow, current.profile)]);
   const topics = readinessTopics(current.profile);
   const seed = randomUUID();
   const plan = planDrill(
@@ -364,8 +325,7 @@ export async function startDrill(caseId: string, probeId: string) {
       readiness: readinessFrom(history, topics),
       mode: "drill",
       seed,
-      notes: (noteRows ?? []).map((n) => ({ id: n.id, sourceKind: n.source_kind, category: n.category as NoteCategory, text: n.text })),
-      folder: (docRows ?? []).map((d) => d.kind as string),
+      ...context,
     },
     z.string().max(80).parse(probeId),
   );
@@ -498,5 +458,7 @@ export async function keepAllNotes(caseId: string) {
     .update({ status: "confirmed", decided_at: new Date().toISOString() })
     .eq("case_id", caseId)
     .eq("status", "pending");
+  // Kept notes from the DS-160 or I-20 are on the officer's screen: they can prompt new questions.
+  if (features.gemini && features.supabaseAdmin) after(() => runCaseQuestions(caseId));
   redirect(`/app/cases/${caseId}/profile#notes`);
 }

@@ -2,6 +2,8 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { CaseProfile } from "@/lib/domain/case";
 import { readiness, type ReadinessTopic } from "@/lib/domain/readiness";
+import { reportedTopicShares } from "@/lib/domain/reported";
+import { stripToolText } from "@/lib/domain/transcript";
 import type { PastSession, ProbeResult, SessionPlan } from "@/lib/domain/director";
 import { creditBalance, type Balance } from "@/lib/domain/credits";
 import { drillEntitlement, entitlement, type Entitlement } from "@/lib/domain/entitlement";
@@ -23,6 +25,8 @@ export interface CaseRow {
   draft_profile: Record<string, unknown>;
   /** What to bring: item ids the applicant ticked as "in my folder". */
   checklist_packed: string[];
+  /** Questions written for this applicant (src/lib/domain/case-questions.ts). Absent before migration 18. */
+  case_questions?: unknown;
   created_at: string;
 }
 
@@ -45,23 +49,70 @@ export async function latestProfile(db: SupabaseClient, caseId: string) {
 }
 
 /** Earlier sessions in the shape the Director needs (most recent first). */
-export async function pastSessions(db: SupabaseClient, caseId: string, limit = 12): Promise<PastSession[]> {
+export async function pastSessions(db: SupabaseClient, caseId: string, limit = 30): Promise<PastSession[]> {
   const { data: sessions } = await db
     .from("sessions")
-    .select("id, plan, probe_results(probe_id, quality, officer_name)")
+    .select("id, plan, mode, outcome, created_at, probe_results(probe_id, quality, officer_name, inconsistency), turns(seq, officer_text, scores)")
     .eq("case_id", caseId)
     .not("ended_at", "is", null)
     .order("created_at", { ascending: false })
     .limit(limit);
   return (sessions ?? []).map((s) => {
     const plan = s.plan as SessionPlan;
-    const results = (s.probe_results ?? []) as { probe_id: string; quality: ProbeResult["quality"]; officer_name: string }[];
+    const results = (s.probe_results ?? []) as { probe_id: string; quality: ProbeResult["quality"]; officer_name: string; inconsistency: unknown }[];
+    const turns = ((s.turns ?? []) as { seq: number; officer_text: string | null; scores: unknown }[]).sort((a, b) => a.seq - b.seq);
     return {
       officer: plan.officer,
-      askedQuestions: plan.probes.map((p) => p.entry),
+      // What the officers actually said, then the planned wordings: the officer words its own questions now.
+      askedQuestions: [...turns.flatMap((t) => spokenQuestions(t.officer_text ?? "")), ...plan.probes.map((p) => p.entry)],
       probeResults: results.map((r) => ({ probeId: r.probe_id, quality: r.quality, officerName: r.officer_name })),
+      mode: s.mode as PastSession["mode"],
+      at: s.created_at as string,
+      outcome: (s.outcome as string | null) ?? null,
+      grades: turns.flatMap((t) => debriefGrade(t.scores)),
+      hadInconsistency: results.some((r) => r.inconsistency != null),
     };
   });
+}
+
+/** One graded answer's debrief scores (1–5 on four anchored scales) as 0..1 for its topic. */
+function debriefGrade(scores: unknown): { probeId: string; score: number }[] {
+  const s = scores as { probe_id?: string | null; llm?: Record<string, number> } | null;
+  const values = Object.values(s?.llm ?? {}).filter((v) => typeof v === "number");
+  if (!s?.probe_id || !values.length) return [];
+  const mean = values.reduce((a, b) => a + b, 0) / values.length;
+  return [{ probeId: s.probe_id, score: Math.max(0, Math.min(1, (mean - 1) / 4)) }];
+}
+
+/** The questions in one officer turn ("Okay. Who pays for your studies?" → the second sentence). */
+export function spokenQuestions(text: string): string[] {
+  return (stripToolText(text).match(/[^.?!]*\?/g) ?? [])
+    .map((q) => q.replace(/\s+/g, " ").trim())
+    .filter((q) => q.length >= 8)
+    .slice(0, 4);
+}
+
+/**
+ * Questions applicants reported being asked at the embassy, with consent,
+ * matched to topics (src/lib/domain/reported.ts). Read across accounts, so it
+ * uses the service client; cached for a few minutes per visa type.
+ */
+const reportedCache = new Map<string, { at: number; shares: Record<string, number> }>();
+export async function reportedShares(visaType: "F1" | "B1B2"): Promise<Record<string, number>> {
+  const hit = reportedCache.get(visaType);
+  if (hit && Date.now() - hit.at < 10 * 60_000) return hit.shares;
+  if (!features.supabaseAdmin) return {};
+  const { data } = await createServiceClient()
+    .from("outcomes")
+    .select("reported_questions, cases!inner(visa_type)")
+    .eq("consent_to_aggregate", true)
+    .eq("cases.visa_type", visaType)
+    .order("reported_at", { ascending: false })
+    .limit(2000);
+  const questions = (data ?? []).flatMap((r) => (r.reported_questions ?? []) as string[]);
+  const shares = reportedTopicShares(questions, visaType);
+  reportedCache.set(visaType, { at: Date.now(), shares });
+  return shares;
 }
 
 /** Credits left on a case: purchases minus paid sessions that started (src/lib/domain/credits.ts). */

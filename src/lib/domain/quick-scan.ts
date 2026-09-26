@@ -10,7 +10,7 @@ import { toUsd } from "./notes";
  * signup as a draft the user still confirms.
  */
 
-/** Approximate cedis per dollar for the scan (no server): the user confirms figures later. */
+/** Fallback cedis per dollar when the page doesn't pass the server's rate; the user confirms figures later. */
 export const SCAN_GHS_PER_USD = 11.5;
 
 const num = z.coerce.number().nonnegative().optional();
@@ -46,8 +46,12 @@ export const QuickScanInput = z.object({
 });
 export type QuickScanInput = z.infer<typeof QuickScanInput>;
 
-export function quickScanProfile(i: QuickScanInput): { profile: CaseProfile; draft: ExtractedFacts } {
-  const usd = (n: number | undefined) => (n === undefined ? undefined : toUsd(n, i.fundsCurrency, SCAN_GHS_PER_USD));
+export function quickScanProfile(
+  i: QuickScanInput,
+  ghsPerUsd = SCAN_GHS_PER_USD,
+): { profile: CaseProfile; draft: ExtractedFacts } {
+  const rate = ghsPerUsd > 0 && Number.isFinite(ghsPerUsd) ? ghsPerUsd : SCAN_GHS_PER_USD;
+  const usd = (n: number | undefined) => (n === undefined ? undefined : toUsd(n, i.fundsCurrency, rate));
   const sponsor = i.sponsorRelationship ? { relationship: i.sponsorRelationship, occupation: i.sponsorOccupation } : undefined;
   const countries = (i.countriesVisited ?? "")
     .split(",")

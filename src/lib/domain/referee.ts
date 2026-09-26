@@ -29,6 +29,13 @@ export interface Decision {
   reasons: string[];
 }
 
+/**
+ * A contradiction found by a quick check ("Are you married?") rather than a
+ * planned topic. Misstating a fact on the DS-160 is serious whatever the topic,
+ * so it counts as a key contradiction.
+ */
+export const FACT_CHECK_ID = "check:facts";
+
 /** Long answers lose points even when the content is right: officers have ~2.5 minutes. */
 export const LONG_ANSWER_SEC = 40;
 
@@ -50,6 +57,7 @@ export function recordTurn(state: RefereeState, turn: TurnEvaluation): RefereeSt
 }
 
 function isCritical(state: RefereeState, probeId: string): boolean {
+  if (probeId === FACT_CHECK_ID) return true;
   return state.plan.probes.find((p) => p.probeId === probeId)?.critical ?? false;
 }
 

@@ -1,4 +1,5 @@
 import { fundingGapUsd, type CaseProfile } from "./case";
+import { isForeignResident } from "./probes";
 
 /**
  * Case Scan: where the officer is likely to press. Deliberately no approval
@@ -69,6 +70,17 @@ export function scanCase(c: CaseProfile): CaseFlag[] {
       title: "Previous refusal on record",
       detail: "The officer can see it. You need a material change, not a better speech.",
       probes: ["common.history.refusal"],
+    });
+  }
+
+  if (isForeignResident(c)) {
+    flags.push({
+      id: "foreign_resident",
+      severity: "high",
+      title: "Applying outside your home country",
+      detail:
+        "Since September 2025 you must apply where you're a national or resident. Be ready to show you really live in Ghana: how long, on what permit, and what you do here.",
+      probes: ["common.residence"],
     });
   }
 

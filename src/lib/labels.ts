@@ -16,6 +16,14 @@ export const TOPIC_LABELS: Record<string, string> = {
   "f1.academic.preparedness": "Academic preparation",
   "f1.ties.job": "Current job",
   "f1.wildcard.ghana": "Why not study in Ghana",
+  "f1.wildcard.us": "Why the US",
+  "f1.wildcard.work": "Working while studying",
+  "f1.wildcard.job_offer": "A US job offer",
+  "f1.funding.living": "Living costs",
+  "f1.academic.tests": "Test scores",
+  "f1.academic.applications": "Schools applied to",
+  "f1.purpose.gap": "Time since your last studies",
+  "f1.ties.family": "Family in Ghana",
   "b.purpose.trip": "Purpose of the trip",
   "b.purpose.duration": "Length of stay",
   "b.host": "Who you're visiting",
@@ -23,14 +31,26 @@ export const TOPIC_LABELS: Record<string, string> = {
   "b.ties.work": "Work in Ghana",
   "b.ties.family": "Family in Ghana",
   "b.wildcard.return": "Reason to return",
+  "b.wildcard.work": "Working in the US",
+  "b.visit.stay": "Where you'll stay",
+  "b.ties.income": "Your income",
+  "b.ties.leave": "Leave from work",
+  "b.ties.business": "Your business",
+  "b.companions": "Who's travelling with you",
   "common.us_contacts": "Family in the US",
   "common.history.refusal": "Previous refusal",
   "common.history.us_visits": "Previous US visits",
   "common.history.travel": "Travel history",
+  "common.ties.property": "Property in Ghana",
+  "common.residence": "Living in Ghana",
+  "f1.purpose.discovery": "How you found the school",
+  "f1.academic.explain": "Explaining your field",
 };
 
 export function topicLabel(probeId: string): string {
   if (probeId.startsWith("note:")) return "A question from their documents";
+  if (probeId.startsWith("case:")) return "A question about their case";
+  if (probeId === "check:facts") return "Facts on your form";
   return TOPIC_LABELS[probeId] ?? probeId;
 }
 

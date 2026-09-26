@@ -5,11 +5,13 @@ import type { SessionPlan } from "@/lib/domain/director";
 import { dedupeConflicts, mergeDraft, type DraftConflict } from "@/lib/domain/draft";
 import { mergeGrades } from "@/lib/domain/grade-merge";
 import { validateRewrite } from "@/lib/domain/rewrite-validator";
-import { isDuplicateNote, redactIdentifiers, toUsd } from "@/lib/domain/notes";
+import { acceptCaseQuestions, type CaseQuestionSet } from "@/lib/domain/case-questions";
+import { isDuplicateNote, isOnScreen, redactIdentifiers, toUsd } from "@/lib/domain/notes";
+import { officerFileText } from "@/lib/domain/officer-prompt";
 import { isRepeatRequest, stripToolText } from "@/lib/domain/transcript";
 import { env } from "@/lib/env";
 import { sliceSamples, voiceMetrics, wavSamples, encodeWav, type VoiceMetrics } from "@/lib/domain/voice";
-import { caseVocabulary, extractFacts, gradeDebrief, isTransient, transcribeAnswer, transcribeDocument } from "@/lib/server/gemini";
+import { caseVocabulary, extractFacts, generateCaseQuestions, gradeDebrief, isTransient, transcribeAnswer, transcribeDocument } from "@/lib/server/gemini";
 import { createServiceClient } from "@/lib/supabase/server";
 
 /**
@@ -122,6 +124,44 @@ export async function runExtraction(documentId: string) {
       })
       .eq("id", doc.id);
   }
+}
+
+/**
+ * Writes the questions only this applicant would get, from their officer's
+ * file, after the profile (or what's on screen) changes. Best effort: without
+ * them the interview still runs on the standard topics.
+ */
+export async function runCaseQuestions(caseId: string) {
+  const db = createServiceClient();
+  try {
+    const { data: prof } = await db
+      .from("case_profiles")
+      .select("version, profile")
+      .eq("case_id", caseId)
+      .order("version", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const parsed = CaseProfile.safeParse(prof?.profile);
+    if (!prof || !parsed.success) return;
+    // Each run is a model call: re-confirming in quick succession doesn't need a new set every time.
+    const { data: caseRow } = await db.from("cases").select("case_questions").eq("id", caseId).maybeSingle();
+    const last = Date.parse(String((caseRow?.case_questions as { generatedAt?: string } | null)?.generatedAt ?? ""));
+    if (Date.now() - last < 60_000) return;
+    const fileText = officerFileText(parsed.data, await onScreenNotes(db, caseId));
+    const generated = await generateCaseQuestions(fileText);
+    const questions = acceptCaseQuestions(generated.questions, parsed.data, fileText);
+    const set: CaseQuestionSet = { profileVersion: prof.version as number, generatedAt: new Date().toISOString(), questions };
+    const { error } = await db.from("cases").update({ case_questions: set }).eq("id", caseId);
+    if (error) throw error;
+  } catch (e) {
+    console.warn("[case-questions] not written:", e instanceof Error ? e.message.slice(0, 200) : e);
+  }
+}
+
+/** Confirmed notes from the documents on the officer's screen (DS-160, I-20, passport, refusal). */
+export async function onScreenNotes(db: ReturnType<typeof createServiceClient>, caseId: string): Promise<string[]> {
+  const { data } = await db.from("case_notes").select("source_kind, text").eq("case_id", caseId).eq("status", "confirmed");
+  return (data ?? []).filter((n) => isOnScreen(n.source_kind as string)).map((n) => n.text as string);
 }
 
 export async function runDebrief(sessionId: string) {

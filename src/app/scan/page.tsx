@@ -4,6 +4,7 @@ import { Footer } from "@/components/home/footer";
 import { Header } from "@/components/home/header";
 import { JsonLd } from "@/components/json-ld";
 import { QuickScan } from "@/components/quick-scan";
+import { env } from "@/lib/env";
 import { site } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -40,7 +41,7 @@ export default function ScanPage() {
           you&rsquo;re likely to get, and what to bring. No approval odds, ever: nobody can honestly give you those.
         </p>
         <div className="mt-10">
-          <QuickScan signedIn={false} />
+          <QuickScan signedIn={false} ghsPerUsd={env.fxGhsPerUsd} />
         </div>
       </main>
       <Footer />

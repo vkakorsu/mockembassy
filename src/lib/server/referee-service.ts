@@ -5,6 +5,7 @@ import { NOTE_PROBE_PREFIX, type SessionPlan } from "@/lib/domain/director";
 import { documentLabel, matchDocumentKind } from "@/lib/domain/notes";
 import { DECISION_LINES } from "@/lib/domain/officer-prompt";
 import {
+  FACT_CHECK_ID,
   decide,
   recordTurn,
   shouldEnd,
@@ -82,7 +83,8 @@ export async function applyToolCall(
       break;
     }
     case "log_inconsistency": {
-      const probeId = call.args.probe_id && known.has(call.args.probe_id) ? call.args.probe_id : session.plan.probes[0].probeId;
+      // Without a planned topic it came from a quick check: a fact on the form, not the first topic.
+      const probeId = call.args.probe_id && known.has(call.args.probe_id) ? call.args.probe_id : FACT_CHECK_ID;
       state = recordTurn(state, {
         probeId,
         quality: "contradiction",
@@ -197,15 +199,25 @@ async function documentView(
         ? { availableFundsUsd: p.funding.liquidFundsUsd, recentLargeDepositUsd: p.funding.recentLargeDepositUsd }
         : kind === "sponsor_letter"
           ? { sponsors: p.funding.sponsors }
-          : kind === "employment_letter" || kind === "business_registration"
-            ? { employer: p.ties.employer, role: p.ties.role, yearsEmployed: p.ties.yearsEmployed, ownsBusiness: p.ties.ownsBusiness }
-            : kind === "i20" || kind === "admission_letter" || kind === "scholarship_letter"
-              ? { study: { ...p.study, postStudyPlan: undefined } }
-              : kind === "invitation_letter"
-                ? { visit: p.visit }
-                : kind === "property"
-                  ? { ownsProperty: p.ties.ownsProperty }
-                  : {};
+          : kind === "employment_letter"
+            ? {
+                employer: p.ties.employer,
+                role: p.ties.role,
+                yearsEmployed: p.ties.yearsEmployed,
+                monthlyIncomeGhs: p.ties.monthlyIncomeGhs,
+                leaveApproved: p.ties.leaveApproved,
+              }
+            : kind === "business_registration"
+              ? { ownsBusiness: p.ties.ownsBusiness, businessName: p.ties.businessName, businessYears: p.ties.businessYears }
+              : kind === "i20" || kind === "admission_letter" || kind === "scholarship_letter"
+                ? { study: { ...p.study, postStudyPlan: undefined } }
+                : kind === "academic_record"
+                  ? { education: p.education }
+                  : kind === "invitation_letter"
+                    ? { visit: p.visit }
+                    : kind === "property"
+                      ? { ownsProperty: p.ties.ownsProperty, propertyDetail: p.ties.propertyDetail }
+                      : {};
   const notes = (session.plan.notes ?? []).filter((n) => n.source === kind);
   // The planned question about this document, if there is one.
   const planned = notes.find((n) => session.plan.probes.some((p) => p.probeId === `${NOTE_PROBE_PREFIX}${n.id}`));

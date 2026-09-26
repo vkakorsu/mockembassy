@@ -94,7 +94,7 @@ export default async function ProfilePage(props: PageProps<"/app/cases/[id]/prof
         </Card>
       )}
       <Card>
-        <ProfileForm caseId={id} visaType={caseRow.visa_type} values={values} fundsHint={fundsHint} />
+        <ProfileForm caseId={id} visaType={caseRow.visa_type} values={values} fundsHint={fundsHint} applicantName={caseRow.applicant_name} />
       </Card>
     </>
   );

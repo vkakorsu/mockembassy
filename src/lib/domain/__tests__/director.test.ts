@@ -115,17 +115,22 @@ describe("planSession", () => {
 
 describe("probeStatus", () => {
   const officer = (name: string) => ({ name, voice: "Kore", traits: { pace: 0.5, warmth: 0.5, scepticism: 0.5, patience: 0.5, silence: 0.5 } });
-  const session = (name: string, quality: "strong" | "weak"): PastSession => ({
-    officer: officer(name),
-    askedQuestions: [],
-    probeResults: [{ probeId: "p", quality, officerName: name }],
-  });
+  const session = (name: string, quality: "strong" | "weak", scepticism = 0.8): PastSession => {
+    const o = officer(name);
+    return {
+      officer: { ...o, traits: { ...o.traits, scepticism } },
+      askedQuestions: [],
+      probeResults: [{ probeId: "p", quality, officerName: name }],
+    };
+  };
 
-  it("needs two different officers after the last weak answer to count as solid", () => {
+  it("needs two different officers, one of them tough, after the last weak answer to count as solid", () => {
     expect(probeStatus("p", [])).toBe("untested");
     expect(probeStatus("p", [session("A", "weak")])).toBe("weak");
     expect(probeStatus("p", [session("B", "strong"), session("A", "weak")])).toBe("improving");
     expect(probeStatus("p", [session("B", "strong"), session("B", "strong"), session("A", "weak")])).toBe("improving");
     expect(probeStatus("p", [session("C", "strong"), session("B", "strong"), session("A", "weak")])).toBe("solid");
+    // Two lenient officers aren't enough.
+    expect(probeStatus("p", [session("C", "strong", 0.3), session("B", "strong", 0.3), session("A", "weak")])).toBe("improving");
   });
 });

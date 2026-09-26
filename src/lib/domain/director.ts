@@ -1,9 +1,11 @@
 import { z } from "zod";
 import type { CaseProfile } from "./case";
+import { CASE_PROBE_PREFIX, type CaseQuestion } from "./case-questions";
 import { scanCase } from "./case-scan";
 import { documentLabel, isOnScreen, type CaseNote } from "./notes";
 import { sampleOfficer, type Officer } from "./officer";
-import { fillTemplate, isFillable, probesFor, type Probe } from "./probes";
+import { DOCUMENTS_FOR_PROBE, QUICK_CHECK_COVERED_BY, quickChecks } from "./quick-checks";
+import { canContradict, fillTemplate, isFillable, probesFor, type Probe } from "./probes";
 import { between, createRng, pick, type Rng } from "./random";
 import { maxSimilarity } from "./similarity";
 
@@ -28,6 +30,16 @@ export interface PastSession {
   officer: Officer;
   probeResults: ProbeResult[];
   askedQuestions: string[];
+  /** For readiness (src/lib/domain/readiness.ts); absent in older callers and tests. */
+  mode?: SessionMode;
+  /** When the session took place (ISO). */
+  at?: string;
+  /** The Referee's verdict, if there was one. */
+  outcome?: string | null;
+  /** The independent debrief grade of each topic answered, 0..1. */
+  grades?: { probeId: string; score: number }[];
+  /** The applicant confirmed something that contradicts their file. */
+  hadInconsistency?: boolean;
 }
 
 export interface DirectorInput {
@@ -44,6 +56,10 @@ export interface DirectorInput {
   notes?: readonly CaseNote[];
   /** Kinds of document the applicant uploaded: their folder at the window. */
   folder?: readonly string[];
+  /** Questions written for this applicant from their file (src/lib/domain/case-questions.ts), already checked. */
+  caseQuestions?: readonly CaseQuestion[];
+  /** How often each topic comes up in questions applicants report from Accra (src/lib/domain/reported.ts). */
+  reportedShares?: Readonly<Record<string, number>>;
 }
 
 export const REALISM_EVENTS = [
@@ -78,6 +94,12 @@ export const SessionPlanSchema = z.object({
         followUpVague: z.array(z.string()),
         followUpContradiction: z.array(z.string()),
         mustInclude: z.array(z.string()),
+        /** What the officer needs to find out. The wording is the officer's own. */
+        goal: z.string().max(300).optional(),
+        /** Facts on the officer's file this topic can be checked against. */
+        onFile: z.array(z.string().max(300)).max(16).optional(),
+        /** A folder document the officer asks to see while on this topic. */
+        askToSee: z.string().max(40).optional(),
         reason: z.enum(["untested", "weak_retest", "improving", "case_flag", "expert_flag", "coverage", "wildcard"]),
       }),
     )
@@ -103,6 +125,12 @@ export const SessionPlanSchema = z.object({
    * their other questions, and it weighs on the verdict.
    */
   decidesFast: z.boolean().optional(),
+  /** After the documents, the officer confirms name and date of birth before the questions. */
+  identityCheck: z.boolean().optional(),
+  /** How recent officers put their questions to this applicant; this officer words them differently. */
+  avoidWordings: z.array(z.string().max(200)).max(15).optional(),
+  /** Short factual checks against the file, fired between topics ("Are you married?"). */
+  quickChecks: z.array(z.object({ question: z.string().max(120), onFile: z.string().max(300) })).max(3).optional(),
 });
 
 export type SessionPlan = z.infer<typeof SessionPlanSchema>;
@@ -110,13 +138,20 @@ type PlannedProbe = SessionPlan["probes"][number];
 
 export type ProbeStatus = "untested" | "weak" | "improving" | "solid";
 
-/** A weakness counts as fixed only after ≥2 distinct officers saw it answered well. */
+/**
+ * A weakness counts as fixed only after ≥2 distinct officers saw it answered
+ * well, one of them tough (the same rule as readiness, src/lib/domain/readiness.ts).
+ */
 export function probeStatus(probeId: string, sessions: readonly PastSession[]): ProbeStatus {
   // sessions are most-recent first; walk oldest -> newest
   const results = sessions
     .slice()
     .reverse()
-    .flatMap((s) => s.probeResults.filter((r) => r.probeId === probeId));
+    .flatMap((s) =>
+      s.probeResults
+        .filter((r) => r.probeId === probeId)
+        .map((r) => ({ ...r, tough: s.mode === "dress_rehearsal" || s.officer.traits.scepticism >= 0.6 })),
+    );
   if (results.length === 0) return "untested";
   const last = results[results.length - 1];
   if (last.quality === "weak" || last.quality === "contradiction") return "weak";
@@ -124,8 +159,8 @@ export function probeStatus(probeId: string, sessions: readonly PastSession[]): 
   results.forEach((r, i) => {
     if (r.quality === "weak" || r.quality === "contradiction") lastBad = i;
   });
-  const goodOfficers = new Set(results.slice(lastBad + 1).map((r) => r.officerName));
-  return goodOfficers.size >= 2 ? "solid" : "improving";
+  const good = results.slice(lastBad + 1);
+  return new Set(good.map((r) => r.officerName)).size >= 2 && good.some((r) => r.tough) ? "solid" : "improving";
 }
 
 const NOVELTY_THRESHOLD = 0.6;
@@ -181,6 +216,8 @@ export function planSession(input: DirectorInput): SessionPlan {
       reason = "expert_flag";
     }
     if (status === "solid" && lastSessionProbes.has(p.id)) score -= 1.0;
+    // Topics Accra officers are reported to ask often come up more often.
+    score += Math.min(0.8, 4 * (input.reportedShares?.[p.id] ?? 0));
     return { probe: p, score, reason };
   });
   scored.sort((a, b) => b.score - a.score);
@@ -211,30 +248,27 @@ export function planSession(input: DirectorInput): SessionPlan {
   const probes: PlannedProbe[] = chosen.map(({ probe, reason }) => {
     const entry = chooseEntry(rng, probe, profile, recentQuestions);
     if (entry.novel) novel++;
-    const fill = (list: readonly string[]) =>
-      list.filter((t) => isFillable(t, profile)).map((t) => fillTemplate(t, profile));
-    return {
-      probeId: probe.id,
-      critical: probe.critical,
-      entry: entry.text,
-      followUpVague: fill(probe.followUpVague),
-      followUpContradiction: fill(probe.followUpContradiction),
-      mustInclude: probe.mustInclude(profile),
-      reason,
-    };
+    return plannedFromProbe(probe, profile, entry.text, reason);
   });
 
-  // A question only this applicant would get: one confirmed note from their own
-  // documents, not asked about in the last two sessions.
-  const notePick = pickNoteProbe(rng, input.notes ?? [], pastSessions, mode);
-  if (notePick) {
+  // Questions only this applicant would get: one confirmed note from their own
+  // documents, and one written from their file, neither asked in the last two sessions.
+  const personal = [
+    pickNoteProbe(rng, input.notes ?? [], pastSessions, mode),
+    pickCaseQuestion(rng, input.caseQuestions ?? [], pastSessions, mode),
+  ];
+  for (const extra of personal) {
+    if (!extra) continue;
     // Never the opener; if the plan is full, it replaces the last optional topic.
     if (probes.length >= 5) {
-      const i = probes.map((p) => !p.critical && p.reason !== "weak_retest").lastIndexOf(true);
-      probes.splice(i >= 0 ? i : probes.length - 1, 1);
+      const i = probes.map((p) => !p.critical && p.reason !== "weak_retest" && !isPersonal(p.probeId)).lastIndexOf(true);
+      if (i < 0) continue;
+      probes.splice(i, 1);
     }
-    probes.splice(Math.min(probes.length, 1 + Math.floor(rng() * Math.max(1, probes.length - 1))), 0, notePick);
+    probes.splice(Math.min(probes.length, 1 + Math.floor(rng() * Math.max(1, probes.length - 1))), 0, extra);
   }
+
+  planDocumentAsk(rng, probes, [...new Set(input.folder ?? [])], mode);
 
   const officer = sampleOfficer(rng, {
     readiness: mode === "dress_rehearsal" ? Math.max(input.readiness, 0.6) : input.readiness,
@@ -271,7 +305,95 @@ export function planSession(input: DirectorInput): SessionPlan {
     decidesFast:
       mode !== "practice" &&
       rng() < Math.min(0.75, Math.max(0.1, 0.2 + 0.35 * officer.traits.scepticism + 0.25 * (1 - officer.traits.patience) - 0.1)),
+    identityCheck:
+      mode !== "practice" &&
+      Boolean(profile.applicant.fullName || profile.applicant.dateOfBirth) &&
+      rng() < (mode === "dress_rehearsal" ? 0.6 : 0.3),
+    avoidWordings: recentWordings(recent),
+    quickChecks: pickQuickChecks(rng, profile, probes, mode),
   });
+}
+
+/** One to three quick factual checks that no planned topic already covers. */
+function pickQuickChecks(rng: Rng, profile: CaseProfile, probes: readonly PlannedProbe[], mode: SessionMode) {
+  const planned = new Set(probes.map((p) => p.probeId));
+  const pool = quickChecks(profile).filter((q) => !QUICK_CHECK_COVERED_BY[q.topic].some((id) => planned.has(id)));
+  const n = Math.min(pool.length, mode === "practice" ? Math.floor(rng() * 2) : mode === "dress_rehearsal" ? 2 + Math.floor(rng() * 2) : 1 + Math.floor(rng() * 2));
+  const out: { question: string; onFile: string }[] = [];
+  while (out.length < n && pool.length) {
+    const [q] = pool.splice(Math.floor(rng() * pool.length), 1);
+    out.push({ question: q.question, onFile: q.onFile });
+  }
+  return out;
+}
+
+/**
+ * Officers look at documents often (about one line in eight in real
+ * transcripts). Pick one planned topic with a matching document in the folder
+ * and have the officer ask to see it there.
+ */
+function planDocumentAsk(rng: Rng, probes: PlannedProbe[], folder: readonly string[], mode: SessionMode) {
+  if (!folder.length || rng() > (mode === "practice" ? 0.3 : mode === "dress_rehearsal" ? 0.7 : 0.5)) return;
+  const options = probes.flatMap((p, i) => {
+    const kind = (DOCUMENTS_FOR_PROBE[p.probeId] ?? []).find((k) => folder.includes(k));
+    return kind ? [{ i, kind }] : [];
+  });
+  if (!options.length) return;
+  const { i, kind } = pick(rng, options);
+  probes[i] = { ...probes[i], askToSee: kind };
+}
+
+/** The officer lines this applicant heard in their last sessions, for the officer to word differently. */
+function recentWordings(recent: readonly PastSession[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const q of recent.flatMap((s) => s.askedQuestions)) {
+    const t = q.replace(/\s+/g, " ").trim().slice(0, 200);
+    if (t.length < 8 || !t.includes("?") || seen.has(t.toLowerCase())) continue;
+    seen.add(t.toLowerCase());
+    out.push(t);
+    if (out.length >= 15) break;
+  }
+  return out;
+}
+
+const isPersonal = (probeId: string) => probeId.startsWith(NOTE_PROBE_PREFIX) || probeId.startsWith(CASE_PROBE_PREFIX);
+
+function plannedFromProbe(probe: Probe, profile: CaseProfile, entry: string, reason: PlannedProbe["reason"]): PlannedProbe {
+  const fill = (list: readonly string[]) => list.filter((t) => isFillable(t, profile)).map((t) => fillTemplate(t, profile));
+  return {
+    probeId: probe.id,
+    critical: probe.critical,
+    entry,
+    followUpVague: fill(probe.followUpVague),
+    // "Your form says..." only when the file actually holds something to compare.
+    followUpContradiction: canContradict(probe, profile) ? fill(probe.followUpContradiction) : [],
+    mustInclude: probe.mustInclude(profile),
+    goal: probe.goal,
+    onFile: probe.onFile(profile).slice(0, 16),
+    reason,
+  };
+}
+
+function caseQuestionProbe(q: CaseQuestion): PlannedProbe {
+  return {
+    probeId: CASE_PROBE_PREFIX + q.id,
+    critical: false,
+    entry: q.question,
+    followUpVague: [],
+    followUpContradiction: q.facts.length ? ["That's not what your file shows."] : [],
+    mustInclude: ["a direct, specific answer"],
+    goal: q.goal,
+    onFile: q.facts,
+    reason: "case_flag",
+  };
+}
+
+function pickCaseQuestion(rng: Rng, questions: readonly CaseQuestion[], past: readonly PastSession[], mode: SessionMode): PlannedProbe | null {
+  if (!questions.length || rng() > (mode === "practice" ? 0.5 : mode === "dress_rehearsal" ? 0.7 : 0.6)) return null;
+  const recent = new Set(past.slice(0, 2).flatMap((s) => s.probeResults.map((r) => r.probeId)));
+  const fresh = questions.filter((q) => !recent.has(CASE_PROBE_PREFIX + q.id));
+  return caseQuestionProbe(pick(rng, fresh.length ? fresh : questions));
 }
 
 export const NOTE_PROBE_PREFIX = "note:";
@@ -318,19 +440,19 @@ export function planDrill(input: DirectorInput, probeId: string): SessionPlan | 
     const note = (input.notes ?? []).find((n) => NOTE_PROBE_PREFIX + n.id === probeId);
     if (!note) return null;
     planned = noteProbe(note);
+  } else if (probeId.startsWith(CASE_PROBE_PREFIX)) {
+    const q = (input.caseQuestions ?? []).find((x) => CASE_PROBE_PREFIX + x.id === probeId);
+    if (!q) return null;
+    planned = caseQuestionProbe(q);
   } else {
     const probe = probesFor(profile.visaType).find((p) => p.id === probeId && p.entry.some((t) => isFillable(t, profile)));
     if (!probe) return null;
-    const fill = (list: readonly string[]) => list.filter((t) => isFillable(t, profile)).map((t) => fillTemplate(t, profile));
-    planned = {
-      probeId: probe.id,
-      critical: probe.critical,
-      entry: chooseEntry(rng, probe, profile, recentQuestions).text,
-      followUpVague: fill(probe.followUpVague),
-      followUpContradiction: fill(probe.followUpContradiction),
-      mustInclude: probe.mustInclude(profile),
-      reason: probeStatus(probe.id, pastSessions) === "weak" ? "weak_retest" : "coverage",
-    };
+    planned = plannedFromProbe(
+      probe,
+      profile,
+      chooseEntry(rng, probe, profile, recentQuestions).text,
+      probeStatus(probe.id, pastSessions) === "weak" ? "weak_retest" : "coverage",
+    );
   }
 
   const officer = sampleOfficer(rng, {
@@ -349,5 +471,6 @@ export function planDrill(input: DirectorInput, probeId: string): SessionPlan | 
     noveltyRate: 1,
     notes: (input.notes ?? []).slice(0, 30).map((n) => ({ id: n.id, text: n.text, source: n.sourceKind, onScreen: isOnScreen(n.sourceKind) })),
     folder: [...new Set(input.folder ?? [])].slice(0, 20),
+    avoidWordings: recentWordings(pastSessions.slice(0, 3)),
   });
 }

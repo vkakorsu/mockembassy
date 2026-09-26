@@ -20,6 +20,10 @@ export function sameApplicant(locked: CaseProfile, next: CaseProfile): IdentityC
   // Birthdays happen; bigger jumps mean a different person.
   if (Math.abs(locked.applicant.age - next.applicant.age) > 1) return { ok: false, field: "age" };
   if (locked.visaType !== next.visaType) return { ok: false, field: "visa type" };
+  // A date of birth, once given, identifies the person. Adding one later is fine.
+  if (locked.applicant.dateOfBirth && next.applicant.dateOfBirth && locked.applicant.dateOfBirth !== next.applicant.dateOfBirth) {
+    return { ok: false, field: "date of birth" };
+  }
   if (locked.study && next.study && !same(locked.study.school, next.study.school) && !same(locked.study.program, next.study.program)) {
     // Changing school *or* program is normal (transfers, corrections); changing both is a new applicant.
     return { ok: false, field: "school and program" };

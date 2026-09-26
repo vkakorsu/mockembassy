@@ -18,7 +18,7 @@ Research review, 26 Sep 2026. The goal is a simulation that behaves like a real 
 
 | Issue | Evidence | What Okwan does |
 |---|---|---|
-| Gemini Live replies when it detects the end of your turn. Default settings end the turn after a short silence, which would cut people off mid-thought. | [Gemini Live capabilities](https://ai.google.dev/gemini-api/docs/live-api/capabilities): `silenceDurationMs`, `endOfSpeechSensitivity` | End-of-turn silence is set per officer from 0.7 to 1.6 s, based on patience, with low end-of-speech sensitivity. That allows for natural pauses in Ghanaian English. |
+| Gemini Live replies when it detects the end of your turn. Default settings end the turn after a short silence, which would cut people off mid-thought. | [Gemini Live capabilities](https://ai.google.dev/gemini-api/docs/live-api/capabilities): `silenceDurationMs`, `endOfSpeechSensitivity` | End-of-turn silence is set per officer from 0.5 to 1.1 s, based on patience, with low end-of-speech sensitivity (see "Reply delay" below for why it came down from 0.7–1.6 s). That allows for natural pauses in Ghanaian English. |
 | The model doesn't interrupt a speaker by itself, because it waits for the end of the turn. Real officers do cut in. | Same | The client times each answer. An impatient officer (or a planned cut-in) gets a `[REFEREE] Cut in` message after 15–35 s, and the officer then interrupts politely. **To verify on the live model:** that a mid-speech client message produces the cut-in reliably. |
 | A model can't truly "stay silent while typing". | Same | The client holds the officer's next audio for 3–5.5 s on one turn when the plan includes a typing silence. |
 | An American officer voice. | [Configure language and voice](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/live-api/configure-language-voice) | `languageCode: en-US`, plus a Live prebuilt voice per officer. |
@@ -126,3 +126,134 @@ Research refresh, and how the interview compares, dimension by dimension. "Verif
 4. **Live mishearing.** The officer still hears the fast live transcript. If mishearing shows up in follow-ups, add case names as vocabulary to the live session (done for input transcription) and consider a push-to-confirm on names and numbers.
 5. **Room sound.** Low embassy ambience (other windows, number calls) would add pressure, but can trip voice activity detection through the mic. Try it behind a setting, with echo cancellation checked on low-end Android phones, before making it the default.
 6. **Model drift.** `gemini-3.8-live` can change under us; the health page and the regression run are the guardrails.
+
+## 9. A fuller file and an officer who isn't reading a script (26 Sep 2026)
+
+A review found that what we collected about each applicant was the weak link: the officer can only check answers against what is on its file, and the file was about 30 fields, far thinner than a real DS-160. The questions were also scripted lines, so they sounded the same from session to session.
+
+### What the officer's file holds now
+
+| Added | Why an officer cares | Where it comes from |
+|---|---|---|
+| Full name, date of birth | Identity check at the window | Passport, DS-160 |
+| Every sponsor: name, occupation, employer or business, income, how many others they support | "Who else is he paying for?" is where funding stories break | DS-160, sponsor letter |
+| Previous education, result, test scores; schools applied to and admitted | Academic preparation, "How many schools admitted you?" | DS-160, transcripts (new document type), I-20 |
+| Each past US trip with year and length | "When was your last trip, how long did you stay?" can now be checked | DS-160 |
+| Parents', spouse's occupations; siblings | Family ties, and who the sponsor really is | DS-160 |
+| Visitors: arrival date, where they'll stay, event, companions, trip cost, monthly income, approved leave, business name and age, what property | The standard B1/B2 follow-ups | DS-160, invitation, employment letter, business registration, property papers |
+
+The confirm form keeps every sponsor, relative, refusal, US trip and test score. Before, it kept only the first of each, so confirming silently dropped a second sponsor read from a document.
+
+### How the officer asks
+
+- **Goals, not lines.** Each topic reaches the officer as a goal ("Find out who pays and whether they can really afford it"), the facts on file to check against, and one example wording it's told not to read out. Follow-ups are built on what the applicant just said: a vague phrase, a new person, a number that doesn't fit.
+- **No bluffing.** A topic only carries "your form says…" challenges when the file holds something to compare. Otherwise the officer is told there's nothing on file for it and never to claim otherwise.
+- **Wordings the applicant has heard.** The officer lines from the last three sessions go into the brief, and the officer words its questions differently.
+- **Wider bank.** 21 → 36 topics: living costs beyond a scholarship, test scores, schools applied to, time since the last degree, family, working while studying, a US job offer, where a visitor stays, income, leave, the business, companions, property.
+- **Questions only this applicant would get.** After facts are confirmed, Flash reads the officer's file and writes up to 5 questions a sharp officer would think of when the facts are put side by side (`case-questions.ts`). Each is kept only if every name and number in it is on the file and the facts it rests on are there too; stored questions are checked again against the current file every time they're used, and only the server can write them (migration 18). One appears in about 60% of sessions, never as the opener, and can be drilled.
+- **Identity check.** When the file has a name or date of birth, about 30% of real interviews (60% of dress rehearsals) confirm it after the documents. It isn't graded.
+- **What Accra actually asks.** Questions applicants report with their outcome (with consent) are matched to topics; topics reported often are chosen more often. Reported text never reaches the officer.
+
+### Still to do
+
+- Existing applicants need to re-confirm their facts to get the new fields and their own questions.
+- The per-applicant question writer and the goal-based officer need checking in live sessions: that the officer still keeps questions short, doesn't drift, and records a judgement for each topic.
+- Readiness now counts the new topics that apply to a case, so existing applicants' scores may dip until those topics are practised.
+
+## 10. Research review: real transcripts, technology, learning (26 Sep 2026)
+
+### Real West African interviews
+
+[Blessing988/f1_visa_transcripts](https://huggingface.co/datasets/Blessing988/f1_visa_transcripts) (MIT) holds 335 officer→applicant exchanges from about 28 real F-1 interviews, mostly Ghana and Nigeria, as applicants recalled them. Caveat: they're remembered, not recorded, and nearly all ended in approval (people share good news), so they show *how officers talk* better than *who gets refused*.
+
+| Finding | Number | What Okwan does now |
+|---|---|---|
+| Officer lines are short | median 7 words, 90th percentile 15 | Officer told most lines are under ten words; fragments are fine. The admin quality page compares ours with these numbers. |
+| Many lines aren't questions | 45%: "I see you have a scholarship.", "Okay.", "pass me your documents" | Officer told to react briefly to the file or the answer, then go on. |
+| Interviews are brief | median 9 officer lines (range 2–43) | Unchanged: 2–4 topics plus follow-ups and quick checks. |
+| Rapid factual checks | "Are you married?", "Any kids?", "Graduated when?", "Have you travelled before?" | **Quick checks**: 1–2 per interview (2–3 in a dress rehearsal), only for facts on the file and not covered by a planned topic. A mismatch is pressed, then logged. |
+| Officers look at documents a lot | about 13% of lines: statements, certificates, offer letters; "this is a photocopy" | **Document asks**: in about half of real interviews the officer asks to see a folder document that fits a planned topic. |
+| Recited answers get called out | "No no, don't give me crammed stuff here" | Impatient or sceptical officers stop a recited answer ("Don't recite. Just tell me simply."). |
+| How they found the school, and whether they understand their field | "How did you get to know about Purdue?", "Catalysis? What's that?" | New topics: how they found the school or won funding, and explaining their field in plain words (weighted up for master's and PhD). |
+| Accra decision wording | "I'm approving your visa", a slip for collecting the passport from DHL, "Are you in Accra or Kumasi?" | Approval line updated. |
+
+### Policy (checked 26 Sep 2026)
+
+- Ghana F-1 refusals: 81% in 2025 (72% in 2024); Accra approved about 25,000 of 61,000 applications in 2025 ([Newsweek](https://www.newsweek.com/us-student-visa-refusals-hit-record-high-11818845), [GH Educate](https://gheducate.com/us-embassy-in-ghana-approves-only-25000-visas-out-of-61000-applications-in-2025/)).
+- Ghana is not in the June 2025 or December 2025 travel-ban proclamations ([NAFSA](https://www.nafsa.org/regulatory-information/proclamation-december-16-2025-travel-ban-effective-january-1-2026)).
+- Since 6 Sep 2025, applicants interview in their country of nationality or residence ([NAFSA](https://www.nafsa.org/regulatory-information/dos-announces-niv-applicants-should-schedule-visa-interview-appointments)). **Added**: nationality on the profile; a non-Ghanaian gets a key "living in Ghana" topic and a Case Scan flag.
+- F, M and J applicants must make social media public; officers check it matches the stated purpose ([Shorelight](https://shorelight.com/student-stories/us-visa-social-media-vetting)). Still a Case Scan flag only.
+
+### Technology
+
+| Area | Finding | Recommendation |
+|---|---|---|
+| Dropped connections | Live sessions can resume with `sessionResumption`, and a single-use ephemeral token can reconnect within its lifetime ([session management](https://ai.google.dev/gemini-api/docs/live-api/session-management), [ephemeral tokens](https://ai.google.dev/gemini-api/docs/live-api/ephemeral-tokens)). Today a drop after the first answer ends the interview. | **Next**: add resumption to the locked config and reconnect in the window. Needs a live test that a locked token accepts the handle. |
+| Turn-taking | Gemini's built-in detection is silence-based. Audio turn detectors (LiveKit, Pipecat Smart Turn) use intonation as well as silence, but LiveKit's supports 14 languages and says nothing about accents ([LiveKit](https://docs.livekit.io/agents/logic/turns/turn-detector/)). | Keep Gemini's detection for now. Revisit with the server-side agent below, testing on recorded Ghanaian answers first. |
+| Server-side agent | LiveKit Agents can run Gemini Live on the server with tools executed there ([LiveKit Gemini plugin](https://docs.livekit.io/agents/models/realtime/plugins/gemini/)), which closes the "tool calls pass through the browser" gap. | Worth doing before scale; it's the biggest remaining integrity gap. |
+| Affective dialog, proactive audio | Available on some Live models, but not documented for the 3.x Live line ([capabilities](https://ai.google.dev/gemini-api/docs/live-api/capabilities)). | Test on `gemini-3.8-live` via the health page before relying on them. Proactive audio would let the officer ignore "um" and muttering. |
+| Speech recognition | Ghanaian English word error rate: Gemini 2.5 Flash about 23%, Whisper large-v3 about 27%; a specialist model (Intron Sahara V2) about 15% overall. Names and numbers are worst for everyone ([AfriSpeech-MultiBench](https://arxiv.org/html/2511.14255)). | Keep the correction flow. Trial a specialist model for the second transcript used in grading. |
+| Voice agent QA | Teams test voice agents with simulated callers (accents, noise, interruptions) and track latency and tool calls ([Hamming guide](https://hamming.ai/resources/voice-agent-testing-guide)). | Build the nightly scripted-applicant run (§8 item 2) with recorded Ghanaian-accented answers. |
+
+### Role-play realism and learning
+
+- LLM role-players overshare, drift across turns and are too verbose. What works is restricting what the model can see, not telling it how to behave: the best simulated patient was judged authentic 49% of the time, close to human actors at 53% ([Patients With Personality](https://arxiv.org/html/2606.17441), [EasyMED](https://arxiv.org/html/2511.14783v3)). Okwan's file-versus-folder split already works this way.
+- Measure realism the same way: blind "real or Okwan?" judgements on transcripts, using the real transcripts above as the human reference.
+- Stress inoculation training reduces anxiety and improves performance under pressure when the pressure rises gradually (meta-analysis of 37 studies; [Saunders et al.](https://www.researchgate.net/publication/13725612_The_effect_of_stress_inoculation_training_on_anxiety_and_performance)). This supports tougher officers as readiness rises, and the dress rehearsal.
+
+### Market
+
+Permito, VisaInterview.ai, visavi, MockVisa, YMGrad and others offer voice mocks with follow-ups and verdicts ([comparison](https://www.visainterview.ai/blog/best-ai-visa-interview-prep-tools-2026)). None of those checked builds the officer's file from the applicant's own DS-160 and documents, or models one embassy. That is Okwan's advantage. Some sell "approved or refund" guarantees; Okwan deliberately gives no approval odds.
+
+### Open questions for Phase 0 (ask 20–30 recent Accra applicants)
+
+1. Where are fingerprints taken: at a separate window before the interview, and does the officer re-scan at the window?
+2. Is the I-20 handed through, or only the passport? Do officers ask for the DS-160 confirmation page?
+3. How is a refusal delivered: the letter's colour and wording, and do officers say "214(b)" aloud?
+4. How often do officers ask to see bank statements, certificates or photos?
+5. Do officers ask about social media?
+6. Glass and microphone: how clear is the sound, and is there noise from other windows?
+
+## 11. Readiness (26 Sep 2026)
+
+Readiness says how prepared the applicant is, never a chance of approval. The old score had several problems:
+- It counted "adequate" as fully good, which the Referee's sceptical officers don't.
+- It never checked for a tough officer, although the homepage promised one.
+- It let two drills a minute apart "confirm" a topic.
+- Nothing faded with time.
+- One weak answer wiped a topic, and the steadier debrief grades were ignored.
+- Every relevant topic counted the same.
+- It could reach 100% without ever passing a full interview.
+
+### The model (`src/lib/domain/readiness.ts`)
+
+**Each answer on a topic** is one piece of evidence:
+- **Quality:** strong 1, adequate 0.6, weak 0.15, contradiction 0. It's averaged with the independent debrief grade when there is one; the grader runs twice with anchored scores, so it's steadier than the live officer.
+- **Weight:** the setting (dress rehearsal 1.2, interview 1, practice 0.8, drill 0.6) × officer toughness (0.75–1.25) × recency (half-life 21 days) × 0.5 if the same topic was answered within the previous 30 minutes (cramming).
+
+**Per topic,** mastery = quality × confidence:
+- **Quality** is weighted towards the latest answers (each later answer halves the say of the ones before), because people improve.
+- **Confidence** is 1 − e^(−total weight): one interview answer ≈ 63%, two ≈ 86%, three ≈ 95%. Old evidence fades.
+- **Caps:** a weak latest answer caps the topic at 30%. Until two different officers, one of them tough (scepticism ≥ 0.6, or a dress rehearsal), have heard it answered well since the last weak answer, it's capped at 70%.
+- **Status:** untested, weak, improving or solid.
+
+**Topics** are weighted by importance: key topics count 2, others count their likelihood of being asked squared (so rarely asked topics count little). Surprise questions are left out.
+
+**The overall score** is the weighted mean, then capped:
+- 60% if the latest full interview had an answer that contradicted the file;
+- 75% while a key topic is untested or weak;
+- 90% until a full interview or dress rehearsal has been passed with a tough officer in the last three weeks.
+
+**Levels** follow the percentage shown: Building (under 45%), Getting close (45–74%), Nearly ready (75–89%), Well prepared (90%+).
+
+A simulated applicant who is weak the first time on every topic and strong afterwards goes from 10% to 90% over 15 daily interviews with drills, and fades to 74% after 30 idle days. "Adequate" answers alone top out around 60%, in line with the Referee: a sceptical officer refuses adequate answers.
+
+### Related fixes
+
+- The planner's "solid" (`probeStatus`) now needs a tough officer too, so it keeps re-testing until one has confirmed it.
+- A contradiction found by a quick check is recorded as `check:facts` (a fact on the form), not against whichever topic came first. The Referee treats it as a key contradiction.
+- The case header shows the level and whichever cap is holding the score down, and says it isn't a chance of approval. "Answers to fix" comes from the new per-topic statuses.
+
+### Still to validate
+
+Calibrate against real outcomes. When applicants report results (`outcomes`), compare their readiness on interview day with approval. The score shouldn't predict approval (case strength matters more than practice), but a well-prepared applicant being refused for answers they had practised is a sign the model over-credits something.
