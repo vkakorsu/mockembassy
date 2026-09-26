@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { CaseProfile } from "./case";
 import { CASE_PROBE_PREFIX, type CaseQuestion } from "./case-questions";
+import { claimProbe, storyChanges, type Claim } from "./story";
 import { scanCase } from "./case-scan";
 import { documentLabel, isOnScreen, type CaseNote } from "./notes";
 import { sampleOfficer, type Officer } from "./officer";
@@ -40,6 +41,9 @@ export interface PastSession {
   grades?: { probeId: string; score: number }[];
   /** The applicant confirmed something that contradicts their file. */
   hadInconsistency?: boolean;
+  id?: string;
+  /** Facts the applicant stated, agreed by both grading runs (src/lib/domain/story.ts). */
+  claims?: Claim[];
 }
 
 export interface DirectorInput {
@@ -184,6 +188,9 @@ export function planSession(input: DirectorInput): SessionPlan {
   const lastSessionProbes = new Set(pastSessions[0]?.probeResults.map((r) => r.probeId) ?? []);
   const flagged = new Set(scanCase(profile).flatMap((f) => f.probes));
   const expert = new Set(input.expertFlaggedProbes ?? []);
+  const shifting = new Set(
+    openStoryChanges(pastSessions).flatMap((c) => claimProbe(c.key, profile.visaType) ?? []),
+  );
 
   const candidates = probesFor(profile.visaType).filter(
     (p) => p.relevance(profile) > 0 && p.entry.some((t) => isFillable(t, profile)),
@@ -216,6 +223,11 @@ export function planSession(input: DirectorInput): SessionPlan {
       reason = "expert_flag";
     }
     if (status === "solid" && lastSessionProbes.has(p.id)) score -= 1.0;
+    // A fact that changed between sessions gets tested again, by an officer who doesn't know it changed.
+    if (shifting.has(p.id)) {
+      score += 1.2;
+      if (reason === "coverage" || reason === "untested") reason = "weak_retest";
+    }
     // Topics Accra officers are reported to ask often come up more often.
     score += Math.min(0.8, 4 * (input.reportedShares?.[p.id] ?? 0));
     return { probe: p, score, reason };
@@ -341,6 +353,16 @@ function planDocumentAsk(rng: Rng, probes: PlannedProbe[], folder: readonly stri
   if (!options.length) return;
   const { i, kind } = pick(rng, options);
   probes[i] = { ...probes[i], askToSee: kind };
+}
+
+/** Unresolved changes in the applicant's story, from sessions that have an id, time and claims. */
+export function openStoryChanges(sessions: readonly PastSession[]) {
+  const withClaims = sessions
+    .filter((s): s is PastSession & { id: string; at: string } => Boolean(s.id && s.at && s.claims))
+    .slice()
+    .reverse()
+    .map((s) => ({ id: s.id, at: s.at, claims: s.claims ?? [] }));
+  return storyChanges(withClaims).filter((c) => c.open);
 }
 
 /** The officer lines this applicant heard in their last sessions, for the officer to word differently. */

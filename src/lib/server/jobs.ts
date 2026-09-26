@@ -6,6 +6,7 @@ import { dedupeConflicts, mergeDraft, type DraftConflict } from "@/lib/domain/dr
 import { mergeGrades } from "@/lib/domain/grade-merge";
 import { validateRewrite } from "@/lib/domain/rewrite-validator";
 import { acceptCaseQuestions, type CaseQuestionSet } from "@/lib/domain/case-questions";
+import { agreedClaims } from "@/lib/domain/story";
 import { isDuplicateNote, isOnScreen, redactIdentifiers, toUsd } from "@/lib/domain/notes";
 import { officerFileText } from "@/lib/domain/officer-prompt";
 import { isRepeatRequest, stripToolText } from "@/lib/domain/transcript";
@@ -316,6 +317,10 @@ export async function runDebrief(sessionId: string) {
           top_fixes: graded?.top_fixes ?? [],
           first_minute_seqs: firstMinute.map((t) => t.seq),
           judge_agreement: agreement,
+          // Facts stated, kept only when both grading runs heard them (src/lib/domain/story.ts).
+          claims: ok.length
+            ? agreedClaims(ok[0].claims ?? [], ok[1]?.claims ?? null).filter((c) => input.some((t) => t.seq === c.seq))
+            : [],
           regrades: (session!.debrief as { regrades?: number } | null)?.regrades ?? 0,
         },
         debrief_status: "done",

@@ -1,5 +1,6 @@
 import type { CaseProfile } from "./case";
-import type { AnswerQuality, PastSession, SessionMode } from "./director";
+import { openStoryChanges, type AnswerQuality, type PastSession, type SessionMode } from "./director";
+import { CLAIM_LABELS } from "./story";
 import { probesFor } from "./probes";
 
 /**
@@ -48,7 +49,7 @@ export interface TopicReadiness {
 }
 
 export interface ReadinessCap {
-  id: "no_full_pass" | "key_topic_untested" | "inconsistency";
+  id: "no_full_pass" | "key_topic_untested" | "inconsistency" | "story_changed";
   max: number;
   reason: string;
 }
@@ -182,6 +183,15 @@ export function readiness(sessions: readonly PastSession[], topics: readonly Rea
   const lastFull = sessions.find((s) => s.mode !== "drill");
   if (lastFull?.hadInconsistency) {
     caps.push({ id: "inconsistency", max: 0.6, reason: "In your last interview an answer contradicted your file. Pass one without that." });
+  }
+  // A fact that changed between interviews and hasn't been settled since.
+  const shifted = openStoryChanges(sessions).filter((c) => now - Date.parse(c.after.at) <= HALF_LIFE_DAYS * DAY);
+  if (shifted.length) {
+    caps.push({
+      id: "story_changed",
+      max: 0.7,
+      reason: `Your answer about ${CLAIM_LABELS[shifted[0].key]} changed between interviews. Give the same true answer next time.`,
+    });
   }
   caps.sort((a, b) => a.max - b.max);
 

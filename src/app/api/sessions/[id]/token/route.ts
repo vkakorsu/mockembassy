@@ -14,9 +14,12 @@ export async function POST(req: Request, ctx: RouteContext<"/api/sessions/[id]/t
     const { id } = await ctx.params;
     const { session, admin, user } = await ownedSession(id);
     if (session.ended_at) throw new HttpError(409, "This session has ended");
-    // A dropped connection before any answer was logged may reconnect; after that, start a new session.
+    // After answers are logged, a new token only resumes the same interview (the browser
+    // holds a resumption handle), within the reconnect limits below. A fresh start would
+    // hand the applicant a new officer mid-interview.
+    const resume = Boolean(((await req.json().catch(() => ({}))) as { resume?: unknown }).resume);
     const logged = ((session.referee_state as { turns?: unknown[] }).turns ?? []).length;
-    if (session.started_at && logged > 0) throw new HttpError(409, "This session already started. Start a new one.");
+    if (session.started_at && logged > 0 && !resume) throw new HttpError(409, "This session already started. Start a new one.");
     // Whatever the browser does, a session gets a few tokens within its own time, no more.
     const tokensIssued = (session.tokens_issued as number | null) ?? 0;
     const gate = tokenAllowed({

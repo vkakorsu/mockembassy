@@ -8,9 +8,10 @@ import { deliveryNotes, type DeliveryMetrics, type VoiceSummary } from "@/lib/do
 import { NOTE_PROBE_PREFIX, type SessionPlan } from "@/lib/domain/director";
 import { documentLabel } from "@/lib/domain/notes";
 import { requireUser } from "@/lib/server/auth";
-import { caseDrillEntitlement, caseEntitlement, getCase } from "@/lib/server/repo";
+import { caseDrillEntitlement, caseEntitlement, getCase, pastSessions } from "@/lib/server/repo";
+import { CLAIM_LABELS, storyChanges } from "@/lib/domain/story";
 import { stripToolText } from "@/lib/domain/transcript";
-import { TESTING_LABELS } from "@/lib/labels";
+import { formatDate, TESTING_LABELS } from "@/lib/labels";
 
 const OUTCOME = {
   approved: { title: "Approved", line: "The officer approved you in this simulation.", cls: "text-approved" },
@@ -70,6 +71,14 @@ export default async function DebriefPage(props: PageProps<"/app/sessions/[id]/d
   const o = s.outcome ? OUTCOME[s.outcome as keyof typeof OUTCOME] : null;
   const debrief = s.debrief as { summary?: string; top_fixes?: string[]; first_minute_seqs?: number[] } | null;
   const grading = s.debrief_status === "pending" || s.debrief_status === "running";
+  // Facts this session stated differently from an earlier one (src/lib/domain/story.ts).
+  const history = await pastSessions(supabase, s.case_id as string);
+  const changedHere = storyChanges(
+    history
+      .filter((h): h is typeof h & { id: string; at: string } => Boolean(h.id && h.at))
+      .reverse()
+      .map((h) => ({ id: h.id, at: h.at, claims: h.claims ?? [] })),
+  ).filter((c) => c.after.sessionId === id);
   const drill = plan.mode === "drill";
   // Topics the officer planned but never reached (a fast decision, or time ran out): drill them instead.
   const reached = new Set(((s.referee_state as { turns?: { probeId: string }[] } | null)?.turns ?? []).map((t) => t.probeId));
@@ -154,6 +163,20 @@ export default async function DebriefPage(props: PageProps<"/app/sessions/[id]/d
                     <li key={f}>{f}</li>
                   ))}
                 </ol>
+                {changedHere.length > 0 && (
+                  <div className="mt-5 rounded-[4px] border border-refused p-4 text-sm">
+                    <p className="font-semibold text-refused">Your story changed</p>
+                    <ul className="mt-2 space-y-1">
+                      {changedHere.map((c) => (
+                        <li key={c.key}>
+                          {CLAIM_LABELS[c.key][0].toUpperCase() + CLAIM_LABELS[c.key].slice(1)}: before you said &ldquo;{c.before.value}&rdquo;
+                          ({formatDate(c.before.at)}), today &ldquo;{c.after.value}&rdquo;.
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="mt-2 text-muted">A real officer would take a shifting answer as a sign something isn&rsquo;t true. Settle on the true answer and give it every time.</p>
+                  </div>
+                )}
               </>
             )}
           </Card>

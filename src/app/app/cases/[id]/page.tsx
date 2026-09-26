@@ -14,6 +14,10 @@ import { fillTemplate, isFillable, probesFor } from "@/lib/domain/probes";
 import { requireUser } from "@/lib/server/auth";
 import { caseDrillEntitlement, caseEntitlement, getCase, latestProfile, pastSessions } from "@/lib/server/repo";
 import { readiness, readinessTopics } from "@/lib/domain/readiness";
+import { openStoryChanges } from "@/lib/domain/director";
+import { StoryChanges } from "@/components/app/story-changes";
+import { DailyPlanCard } from "@/components/app/daily-plan-card";
+import { dailyPlan } from "@/lib/domain/daily-plan";
 import { formatDate, modeLabel } from "@/lib/labels";
 
 const OUTCOME: Record<string, { label: string; cls: string }> = {
@@ -96,6 +100,14 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
     outcomeReported: Boolean(outcome),
   });
   const interviewPassed = interview ? hasPassed(interview) : false;
+  const plan = dailyPlan({
+    daysToInterview: daysToGo,
+    readiness: ready.score,
+    sessions: (sessions ?? []).map((x) => ({ mode: x.mode as string, at: (x.started_at ?? x.created_at) as string })),
+    hasWeakTopic: ready.topics.some((t) => t.status === "weak"),
+    hasStoryChange: openStoryChanges(history).length > 0,
+    outcomeReported: Boolean(outcome),
+  });
 
   return (
     <>
@@ -118,7 +130,7 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
         <div className="space-y-6">
           <Card>
             <div className="flex flex-wrap items-baseline justify-between gap-3">
-              <h2 className="font-display text-2xl uppercase">Practice</h2>
+              <h2 id="practice" className="scroll-mt-24 font-display text-2xl uppercase">Practice</h2>
               <span className="label text-muted">{ent.reason}</span>
             </div>
             {!current ? (
@@ -195,9 +207,11 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
             )}
           </Card>
 
+          {current && <StoryChanges caseId={id} visaType={caseRow.visa_type} changes={openStoryChanges(history)} />}
+
           {toFix.length > 0 && (
             <Card>
-              <h2 className="font-display text-2xl uppercase">Answers to fix</h2>
+              <h2 id="fix" className="scroll-mt-24 font-display text-2xl uppercase">Answers to fix</h2>
               <p className="mt-1 text-sm text-muted">Drills: one question, a new officer each time, graded straight away. Repeat until it&rsquo;s solid.</p>
               <ul className="mt-4 divide-y divide-line">
                 {toFix.map((t) => (
@@ -239,6 +253,28 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
         </div>
 
         <div className="space-y-6">
+          {current && <DailyPlanCard caseId={id} plan={plan} hasDate={Boolean(caseRow.interview_at)} />}
+          {current && (
+            <Card>
+              <h2 className="font-display text-2xl uppercase">Guides</h2>
+              <ul className="mt-3 space-y-2 text-sm">
+                <li>
+                  <Link className="underline underline-offset-2" href={`/app/cases/${id}/facts`}>Know your file</Link>
+                  <span className="text-muted">: the facts and numbers on the officer&rsquo;s screen, with a quick quiz</span>
+                </li>
+                <li>
+                  <Link className="underline underline-offset-2" href={`/app/cases/${id}/day`}>Interview day</Link>
+                  <span className="text-muted">: the embassy from the night before to the decision</span>
+                </li>
+                {(current.profile.history.priorRefusals.length > 0 || outcome?.result === "refused_214b" || outcome?.result === "refused_other") && (
+                  <li>
+                    <Link className="underline underline-offset-2" href={`/app/cases/${id}/refused`}>Refused before</Link>
+                    <span className="text-muted">: reapply now or wait, and what counts as a real change</span>
+                  </li>
+                )}
+              </ul>
+            </Card>
+          )}
           {current && (
             <Card>
               <h2 id="bring" className="scroll-mt-24 font-display text-2xl uppercase">

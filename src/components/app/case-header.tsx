@@ -44,6 +44,11 @@ export function CaseHeader({
             <Link href={`/app/cases/${caseId}/documents`} className="rounded-[3px] border border-ink px-3 py-1.5 font-semibold hover:bg-ink hover:text-on-ink">
               Documents <span className="font-normal text-muted">· {docCount}</span>
             </Link>
+            {factsVersion && (
+              <Link href={`/app/cases/${caseId}/facts`} className="rounded-[3px] border border-ink px-3 py-1.5 font-semibold hover:bg-ink hover:text-on-ink">
+                Know your file
+              </Link>
+            )}
             <span className="text-muted">{factsVersion ? `Facts confirmed (version ${factsVersion})` : "Not confirmed yet"}</span>
           </div>
         </div>
@@ -68,7 +73,7 @@ export function CaseHeader({
           </p>
           <p className="mt-1 text-[11px] text-muted">How prepared you are, not a chance of approval.</p>
         </div>
-        <div className="p-6 sm:p-8">
+        <div id="countdown" className="p-6 sm:p-8">
           <Countdown interviewAt={interviewAt} days={days} setDate={setDate} />
         </div>
       </div>

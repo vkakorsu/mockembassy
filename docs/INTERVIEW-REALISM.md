@@ -257,3 +257,13 @@ A simulated applicant who is weak the first time on every topic and strong after
 ### Still to validate
 
 Calibrate against real outcomes. When applicants report results (`outcomes`), compare their readiness on interview day with approval. The score shouldn't predict approval (case strength matters more than practice), but a well-prepared applicant being refused for answers they had practised is a sign the model over-credits something.
+
+## 12. Preparation beyond the interview (26 Sep 2026)
+
+- **Story tracker** (`src/lib/domain/story.ts`): the debrief grader lists the facts the applicant stated, in canonical form; a fact is kept only when both grading runs heard it. A fact that changes between sessions (sponsor "father", then "uncle") is shown on the case page and in the debrief, caps readiness at 70% until two sessions agree, and makes the next officer test that topic without knowing why.
+- **Dropped connections**: the Live config asks for resumption handles; the window resumes the same interview on a dropped line (same token first, then a resume token, at most 3 tokens per session). Needs a live check that a config-locked ephemeral token accepts the handle.
+- **Before stepping up**: a mic check with playback, a connection check, and the data the interview will use.
+- **Know your file**: the facts and numbers on the officer's screen, printable, with a spoken-answer quiz. Built only from confirmed facts; the private post-study plan never appears.
+- **Refused before**: what 214(b) and 221(g) mean, an honest reapply-or-wait check (practice alone isn't a material change), and a drill on "What has changed?".
+- **Interview day**: the Accra day from the night before to the decision. Unconfirmed details (what's allowed through security) point to the embassy's current instructions.
+- **Daily plan and reminders**: what to do today, by phase of the countdown, ticked off from sessions; a calendar file with evening practice reminders, a dress rehearsal two days before, and the interview with alerts. Email or WhatsApp reminders need a provider (not configured).

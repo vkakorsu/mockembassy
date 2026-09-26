@@ -3,6 +3,7 @@
 import { FunctionResponseScheduling, GoogleGenAI, type LiveServerMessage, type Session } from "@google/genai";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { PreflightCheck } from "@/components/app/preflight-check";
 import { Guilloche } from "@/components/guilloche";
 import type { LiveBehaviour } from "@/lib/domain/live-behaviour";
 import { encodeWav } from "@/lib/domain/voice";
@@ -67,6 +68,8 @@ const VOICE_LEVEL = 0.02;
 const NO_REPLY_MS = 3500;
 /** How long after "Passport, please" before assuming the documents were passed. */
 const HANDOVER_MS = 8000;
+/** Reconnects allowed after a dropped line (the token route allows 3 tokens per session). */
+const MAX_RECONNECTS = 3;
 
 export function LiveRoom(props: Props) {
   const router = useRouter();
@@ -102,6 +105,12 @@ export function LiveRoom(props: Props) {
   const lastVoiceAtRef = useRef(0);
   const lastOfficerAtRef = useRef(0);
   const nudgedRef = useRef(false);
+  // Reconnecting after a dropped line (Gemini Live session resumption).
+  const tokenRef = useRef<{ token: string; model: string } | null>(null);
+  const resumeHandleRef = useRef<string | null>(null);
+  const connectionRef = useRef(0);
+  const reconnectsRef = useRef(0);
+  const reconnectingRef = useRef(false);
 
   const now = () => Date.now() - startRef.current;
 
@@ -330,7 +339,77 @@ export function LiveRoom(props: Props) {
       window.setTimeout(() => void finish(), wait);
     }
     if (msg.toolCall) void handleToolCalls(msg);
-    if (msg.goAway) setStatus("Connection ending soon…");
+    // The latest point this interview can be resumed from if the line drops.
+    const update = msg.sessionResumptionUpdate;
+    if (update?.resumable && update.newHandle) resumeHandleRef.current = update.newHandle;
+  }
+
+  /** Opens a Live connection; with a handle it resumes the same interview. Events from older connections are ignored. */
+  async function openLive(token: string, model: string, handle: string | null): Promise<Session> {
+    const id = ++connectionRef.current;
+    const ai = new GoogleGenAI({ apiKey: token, httpOptions: { apiVersion: "v1alpha" } });
+    return ai.live.connect({
+      model,
+      config: handle ? { sessionResumption: { handle } } : {},
+      callbacks: {
+        onmessage: (msg) => {
+          if (id === connectionRef.current) onMessage(msg);
+        },
+        onerror: () => {
+          if (id === connectionRef.current) void lineDropped();
+        },
+        onclose: () => {
+          if (id === connectionRef.current) void lineDropped();
+        },
+      },
+    });
+  }
+
+  /**
+   * The connection closed without us closing it: on mobile data this is usually
+   * a blip. Resume the same interview (same officer, same questions so far)
+   * rather than ending it; give up after a few tries.
+   */
+  async function lineDropped() {
+    if (finishingRef.current || reconnectingRef.current) return;
+    if (decidedRef.current) return void finish();
+    const handle = resumeHandleRef.current;
+    const creds = tokenRef.current;
+    if (!handle || !creds || reconnectsRef.current >= MAX_RECONNECTS) {
+      setError("The connection dropped.");
+      return void finish();
+    }
+    reconnectingRef.current = true;
+    reconnectsRef.current += 1;
+    sessionRef.current = null;
+    stopPlayback();
+    setStatus("The line dropped. Reconnecting…");
+    try {
+      let session: Session;
+      try {
+        session = await openLive(creds.token, creds.model, handle);
+      } catch {
+        // The first token may not open another connection: ask for a resume token.
+        const res = await fetch(`/api/sessions/${props.sessionId}/token`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ resume: true }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error ?? "Couldn't reconnect");
+        tokenRef.current = { token: json.token, model: json.model };
+        session = await openLive(json.token, json.model, handle);
+      }
+      sessionRef.current = session;
+      setStatus("Reconnected.");
+      window.setTimeout(() => setStatus((s) => (s === "Reconnected." ? "" : s)), 2500);
+      referee("The line dropped for a few seconds. Carry on exactly where you left off. If you were asking a question, ask it again briefly.");
+    } catch {
+      setError("The connection dropped and couldn't be restored.");
+      void finish();
+    } finally {
+      reconnectingRef.current = false;
+    }
   }
 
   async function finish() {
@@ -393,22 +472,8 @@ export function LiveRoom(props: Props) {
       capCtx.createMediaStreamSource(mic).connect(node);
 
 
-      const ai = new GoogleGenAI({ apiKey: tokenJson.token, httpOptions: { apiVersion: "v1alpha" } });
-      const session = await ai.live.connect({
-        model: tokenJson.model,
-        config: {},
-        callbacks: {
-          onmessage: onMessage,
-          onerror: () => {
-            setError("The connection dropped.");
-            void finish();
-          },
-          onclose: () => {
-            if (!finishingRef.current) void finish();
-          },
-        },
-      });
-      sessionRef.current = session;
+      tokenRef.current = { token: tokenJson.token, model: tokenJson.model };
+      sessionRef.current = await openLive(tokenJson.token, tokenJson.model, null);
 
       node.port.onmessage = (e: MessageEvent<{ pcm: ArrayBuffer; level: number }>) => {
         setMicLevel(e.data.level);
@@ -466,6 +531,8 @@ export function LiveRoom(props: Props) {
         node.port.onmessage = null;
         mic.getTracks().forEach((t) => t.stop());
         void capCtx.close();
+        // Our own close isn't a dropped line: stop listening first.
+        connectionRef.current += 1;
         try {
           sessionRef.current?.close();
         } catch {}
@@ -546,6 +613,11 @@ export function LiveRoom(props: Props) {
                   </button>
                 )}
               </span>
+            </div>
+          )}
+          {(phase === "ready" || phase === "error") && (
+            <div className="relative mx-5 mb-4 sm:mx-8">
+              <PreflightCheck targetDurationSec={props.targetDurationSec} />
             </div>
           )}
           <div className="perforated" />

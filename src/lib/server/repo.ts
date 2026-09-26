@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { CaseProfile } from "@/lib/domain/case";
 import { readiness, type ReadinessTopic } from "@/lib/domain/readiness";
 import { reportedTopicShares } from "@/lib/domain/reported";
+import { Claim } from "@/lib/domain/story";
 import { stripToolText } from "@/lib/domain/transcript";
 import type { PastSession, ProbeResult, SessionPlan } from "@/lib/domain/director";
 import { creditBalance, type Balance } from "@/lib/domain/credits";
@@ -52,7 +53,7 @@ export async function latestProfile(db: SupabaseClient, caseId: string) {
 export async function pastSessions(db: SupabaseClient, caseId: string, limit = 30): Promise<PastSession[]> {
   const { data: sessions } = await db
     .from("sessions")
-    .select("id, plan, mode, outcome, created_at, probe_results(probe_id, quality, officer_name, inconsistency), turns(seq, officer_text, scores)")
+    .select("id, plan, mode, outcome, created_at, debrief, probe_results(probe_id, quality, officer_name, inconsistency), turns(seq, officer_text, scores)")
     .eq("case_id", caseId)
     .not("ended_at", "is", null)
     .order("created_at", { ascending: false })
@@ -71,8 +72,16 @@ export async function pastSessions(db: SupabaseClient, caseId: string, limit = 3
       outcome: (s.outcome as string | null) ?? null,
       grades: turns.flatMap((t) => debriefGrade(t.scores)),
       hadInconsistency: results.some((r) => r.inconsistency != null),
+      id: s.id as string,
+      claims: storedClaims(s.debrief),
     };
   });
+}
+
+/** Claims saved with a debrief; anything malformed is dropped. */
+function storedClaims(debrief: unknown): Claim[] {
+  const raw = (debrief as { claims?: unknown[] } | null)?.claims;
+  return Array.isArray(raw) ? raw.flatMap((c) => { const p = Claim.safeParse(c); return p.success ? [p.data] : []; }) : [];
 }
 
 /** One graded answer's debrief scores (1–5 on four anchored scales) as 0..1 for its topic. */
