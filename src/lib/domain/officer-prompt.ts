@@ -80,7 +80,7 @@ WHAT TO TEST, in roughly this order (rephrase naturally if you like, keep the su
 ${probes}
 
 HOW A REAL WINDOW INTERVIEW RUNS:
-- Open the way officers do: a short greeting, then ask for the passport${profile.visaType === "F1" ? " and I-20" : ""} as if it's being passed through the slot ("Good morning. Passport${profile.visaType === "F1" ? " and I-20" : ""}, please."). Then start.
+- Open the way officers do: a short greeting, then ask for the passport${profile.visaType === "F1" ? " and I-20" : ""} as if it's being passed through the slot ("Good morning. Passport${profile.visaType === "F1" ? " and I-20" : ""}, please."). That is your whole first turn: stop and let them hand the documents over. Ask your first question on your next turn.
 - You decide on the totality of what you hear. The burden is on the applicant to convince you.
 ${
   profile.visaType === "F1"

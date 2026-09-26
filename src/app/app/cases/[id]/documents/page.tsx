@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { deleteDocument } from "@/app/app/actions";
+import { deleteDocument, retryExtraction } from "@/app/app/actions";
 import { DocumentUploader } from "@/components/app/document-uploader";
 import { BackLink, Button, Card, PageTitle } from "@/components/app/ui";
 import { env, features } from "@/lib/env";
@@ -51,9 +51,16 @@ export default async function Documents(props: PageProps<"/app/cases/[id]/docume
                       {d.extraction_error ? `: ${d.extraction_error}` : ""} · deleted {new Date(d.delete_after).toLocaleDateString()}
                     </span>
                   </span>
-                  <form action={deleteDocument.bind(null, d.id)}>
-                    <Button variant="ghost">Delete now</Button>
-                  </form>
+                  <span className="flex shrink-0 gap-2">
+                    {d.extraction_status === "failed" && (
+                      <form action={retryExtraction.bind(null, d.id)}>
+                        <Button variant="ghost">Try again</Button>
+                      </form>
+                    )}
+                    <form action={deleteDocument.bind(null, d.id)}>
+                      <Button variant="ghost">Delete now</Button>
+                    </form>
+                  </span>
                 </li>
               ))}
             </ul>

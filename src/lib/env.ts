@@ -35,9 +35,14 @@ export const env = {
   supabaseSecretKey: first("SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY"),
 
   geminiApiKey: first("GEMINI_API_KEY", "GOOGLE_API_KEY"),
-  // Verify these ids against https://ai.google.dev/gemini-api/docs/models before launch.
+  // Verified against the live API on 26 Sep 2026 (/admin/health).
   geminiLiveModel: first("GEMINI_LIVE_MODEL") ?? "gemini-3.8-live",
   geminiFlashModel: first("GEMINI_FLASH_MODEL") ?? "gemini-3.8-flash",
+  // Tried in order when the main Flash model is overloaded.
+  geminiFlashFallbacks: (first("GEMINI_FLASH_FALLBACKS") ?? "gemini-3.7-flash,gemini-3.5-flash")
+    .split(",")
+    .map((m) => m.trim())
+    .filter(Boolean),
 
   paystackSecretKey: first("PAYSTACK_SECRET_KEY"),
 };

@@ -100,6 +100,19 @@ export async function registerDocument(caseId: string, kind: string, storagePath
   return { id: data.id as string };
 }
 
+/** Re-reads a document whose extraction failed (usually a brief model overload). */
+export async function retryExtraction(documentId: string) {
+  const { supabase } = await requireUser();
+  // RLS: only the owner can see the row.
+  const { data } = await supabase.from("documents").select("case_id, extraction_status").eq("id", documentId).maybeSingle();
+  if (!data) return;
+  if (data.extraction_status === "failed" && features.gemini && features.supabaseAdmin) {
+    await createServiceClient().from("documents").update({ extraction_status: "pending", extraction_error: null }).eq("id", documentId);
+    after(() => runExtraction(documentId));
+  }
+  redirect(`/app/cases/${data.case_id}/documents`);
+}
+
 export async function deleteDocument(documentId: string) {
   const { supabase } = await requireUser();
   const { data } = await supabase.from("documents").select("storage_path, case_id").eq("id", documentId).maybeSingle();
@@ -346,5 +359,17 @@ export async function correctTranscript(sessionId: string, seq: number, formData
     .update({ debrief_status: "pending", debrief: { ...((session.debrief as object) ?? {}), regrades: regrades + 1 } })
     .eq("id", sessionId);
   if (features.gemini) after(() => runDebrief(sessionId));
+  redirect(`/app/sessions/${sessionId}/debrief`);
+}
+
+/** Grades a session again after grading failed. Doesn't count toward the correction limit. */
+export async function retryDebrief(sessionId: string) {
+  const { supabase } = await requireUser();
+  const { data: session } = await supabase.from("sessions").select("debrief_status").eq("id", sessionId).maybeSingle();
+  if (!session) throw new Error("Session not found");
+  if (session.debrief_status === "failed" && features.gemini) {
+    await createServiceClient().from("sessions").update({ debrief_status: "pending" }).eq("id", sessionId);
+    after(() => runDebrief(sessionId));
+  }
   redirect(`/app/sessions/${sessionId}/debrief`);
 }

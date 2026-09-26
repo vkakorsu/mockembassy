@@ -76,6 +76,8 @@ export function LiveRoom(props: Props) {
   const officerSpeakingRef = useRef(false);
   const answerSinceRef = useRef<number | null>(null);
   const cutInSentRef = useRef(false);
+  /** When to tell the officer the documents are through the slot, if the applicant stays silent. */
+  const handoverAtRef = useRef<number | null>(null);
 
   const now = () => Date.now() - startRef.current;
 
@@ -94,6 +96,7 @@ export function LiveRoom(props: Props) {
   }
 
   function onUserText(text: string) {
+    handoverAtRef.current = null;
     if (lastSpeakerRef.current !== "user") {
       answerSinceRef.current = Date.now();
       cutInSentRef.current = false;
@@ -187,6 +190,12 @@ export function LiveRoom(props: Props) {
   function onMessage(msg: LiveServerMessage) {
     const sc = msg.serverContent;
     if (sc?.interrupted) stopPlayback();
+    if (sc?.turnComplete && officerTurnRef.current === 1 && lastSpeakerRef.current !== "user") {
+      // The officer asked for the documents. Most people pass them silently, so
+      // after the request finishes playing, tell the officer they're through.
+      const p = playRef.current;
+      handoverAtRef.current = Date.now() + (p ? Math.max(0, (p.next - p.ctx.currentTime) * 1000) : 0) + 2500;
+    }
     if (sc?.turnComplete || sc?.interrupted) officerSpeakingRef.current = false;
     for (const part of sc?.modelTurn?.parts ?? []) {
       if (part.inlineData?.data) playPcm(part.inlineData.data);
@@ -298,6 +307,11 @@ export function LiveRoom(props: Props) {
         analyser.getByteFrequencyData(levels);
         setOfficerLevel(levels.reduce((a, b) => a + b, 0) / levels.length / 255);
         setElapsed(Math.floor(now() / 1000));
+        const handoverAt = handoverAtRef.current;
+        if (handoverAt && Date.now() > handoverAt) {
+          handoverAtRef.current = null;
+          referee("The applicant has passed the documents through the slot without speaking. Begin your questions.");
+        }
         // An impatient officer cuts in on a long answer.
         const cutIn = behaviourRef.current?.cutInAfterSec;
         const since = answerSinceRef.current;

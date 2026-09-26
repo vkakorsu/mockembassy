@@ -5,7 +5,7 @@ import type { SessionPlan } from "@/lib/domain/director";
 import { mergeDraft, type DraftConflict } from "@/lib/domain/draft";
 import { mergeGrades } from "@/lib/domain/grade-merge";
 import { validateRewrite } from "@/lib/domain/rewrite-validator";
-import { extractFacts, gradeDebrief } from "@/lib/server/gemini";
+import { extractFacts, gradeDebrief, isTransient } from "@/lib/server/gemini";
 import { createServiceClient } from "@/lib/supabase/server";
 
 /**
@@ -49,7 +49,14 @@ export async function runExtraction(documentId: string) {
   } catch (e) {
     await db
       .from("documents")
-      .update({ extraction_status: "failed", extraction_error: e instanceof Error ? e.message.slice(0, 300) : "failed" })
+      .update({
+        extraction_status: "failed",
+        extraction_error: isTransient(e)
+          ? "The reading service was busy. Try again in a minute."
+          : e instanceof Error
+            ? e.message.slice(0, 300)
+            : "failed",
+      })
       .eq("id", doc.id);
   }
 }

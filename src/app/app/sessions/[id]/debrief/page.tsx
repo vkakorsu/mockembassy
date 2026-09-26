@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { correctTranscript, rateSession } from "@/app/app/actions";
+import { correctTranscript, rateSession, retryDebrief } from "@/app/app/actions";
 import { AutoRefresh } from "@/components/app/auto-refresh";
-import { BackLink, Card, PageTitle } from "@/components/app/ui";
+import { BackLink, Button, Card, PageTitle } from "@/components/app/ui";
 import type { DeliveryMetrics } from "@/lib/domain/delivery";
 import type { SessionPlan } from "@/lib/domain/director";
 import { requireUser } from "@/lib/server/auth";
@@ -78,7 +78,12 @@ export default async function DebriefPage(props: PageProps<"/app/sessions/[id]/d
             {grading ? (
               <p className="mt-2 text-sm text-muted">Reviewing your answers…</p>
             ) : s.debrief_status === "failed" ? (
-              <p className="mt-2 text-sm text-muted">We couldn&rsquo;t grade this session. Your transcript is below.</p>
+              <>
+                <p className="mt-2 text-sm text-muted">We couldn&rsquo;t grade this session. Your transcript is below.</p>
+                <form action={retryDebrief.bind(null, id)} className="mt-3">
+                  <Button variant="ghost">Try grading again</Button>
+                </form>
+              </>
             ) : (
               <>
                 <p className="mt-2 text-sm text-muted">{debrief?.summary}</p>

@@ -1,5 +1,5 @@
 import "server-only";
-import { Behavior, EndSensitivity, GoogleGenAI, Modality } from "@google/genai";
+import { Behavior, EndSensitivity, GoogleGenAI, Modality, type GenerateContentParameters } from "@google/genai";
 import { z } from "zod";
 import type { CaseProfile } from "@/lib/domain/case";
 import type { SessionPlan } from "@/lib/domain/director";
@@ -13,6 +13,34 @@ function genai(apiVersion?: string) {
     apiKey: requireEnv(env.geminiApiKey, "GEMINI_API_KEY"),
     ...(apiVersion ? { httpOptions: { apiVersion } } : {}),
   });
+}
+
+/** Overloaded or rate-limited: worth retrying, then trying another model. */
+export function isTransient(e: unknown) {
+  const m = e instanceof Error ? e.message : String(e);
+  return /"code":\s*(429|500|503|504)|UNAVAILABLE|RESOURCE_EXHAUSTED|overloaded|high demand|fetch failed|ECONNRESET/i.test(m);
+}
+
+/**
+ * A Flash call on the configured model that retries brief overloads, then
+ * falls back through GEMINI_FLASH_FALLBACKS. Other errors fail fast.
+ */
+async function flash(params: Omit<GenerateContentParameters, "model">) {
+  const models = [env.geminiFlashModel, ...env.geminiFlashFallbacks.filter((m) => m !== env.geminiFlashModel)];
+  let last: unknown;
+  for (const model of models) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        return await genai().models.generateContent({ ...params, model });
+      } catch (e) {
+        last = e;
+        if (!isTransient(e)) throw e;
+        await new Promise((r) => setTimeout(r, 800 * 2 ** attempt + Math.random() * 400));
+      }
+    }
+    console.warn(`[gemini] ${model} unavailable, trying the next model`);
+  }
+  throw last;
 }
 
 function jsonSchema(schema: z.ZodType) {
@@ -29,8 +57,7 @@ Return only facts that are clearly stated. Omit anything uncertain. Convert mone
 Never guess ages, incomes or dates.`;
 
 export async function extractFacts(file: { bytes: Uint8Array; mimeType: string; kind: string }): Promise<ExtractedFacts> {
-  const res = await genai().models.generateContent({
-    model: env.geminiFlashModel,
+  const res = await flash({
     contents: [
       {
         role: "user",
@@ -91,8 +118,7 @@ export async function gradeDebrief(input: {
   plan: SessionPlan;
   turns: { seq: number; officer: string; answer: string; seconds: number }[];
 }): Promise<Debrief> {
-  const res = await genai().models.generateContent({
-    model: env.geminiFlashModel,
+  const res = await flash({
     contents: [
       {
         role: "user",
@@ -217,8 +243,7 @@ export async function geminiHealth(): Promise<{ checks: HealthCheck[]; liveModel
 
   checks.push(
     await timed(`Flash structured JSON (${env.geminiFlashModel})`, async () => {
-      const res = await genai().models.generateContent({
-        model: env.geminiFlashModel,
+      const res = await flash({
         contents: "Reply with ok=true.",
         config: {
           responseMimeType: "application/json",
