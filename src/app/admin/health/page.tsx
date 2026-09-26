@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/server/admin";
 import { geminiHealth, type HealthCheck } from "@/lib/server/gemini";
 
 export const metadata = { title: "System health" };
+export const maxDuration = 60;
 
 async function supabaseCheck(db: Awaited<ReturnType<typeof requireAdmin>>["db"]): Promise<HealthCheck> {
   const t = Date.now();
@@ -24,6 +25,8 @@ export default async function AdminHealth() {
     checks.push(...g.checks);
     liveModels = g.liveModels;
     flashModels = g.flashModels;
+    // Visible in the deployment's runtime logs, for debugging without the page.
+    console.info("[health]", JSON.stringify(g.checks));
   } else {
     checks.push({ name: "Gemini key", ok: false, detail: "GEMINI_API_KEY not set", ms: 0 });
   }

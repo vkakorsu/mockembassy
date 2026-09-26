@@ -228,15 +228,86 @@ export async function geminiHealth(): Promise<{ checks: HealthCheck[]; liveModel
     }),
   );
 
+  const { amaF1 } = await import("@/lib/domain/fixtures");
+  const { planSession } = await import("@/lib/domain/director");
+  const plan = planSession({ profile: amaF1, pastSessions: [], readiness: 0.4, mode: "real", seed: `health-${Date.now()}` });
+  let token = "";
   checks.push(
     await timed(`Live token (${env.geminiLiveModel})`, async () => {
-      const { amaF1 } = await import("@/lib/domain/fixtures");
-      const { planSession } = await import("@/lib/domain/director");
-      const plan = planSession({ profile: amaF1, pastSessions: [], readiness: 0.4, mode: "real", seed: "health" });
-      const { token } = await createLiveToken(plan, amaF1);
-      return `created (${token.slice(0, 12)}…)`;
+      token = (await createLiveToken(plan, amaF1)).token;
+      return "created with the officer config locked";
+    }),
+  );
+  if (token) checks.push(await timed("Live round trip: officer opens the interview", () => liveRoundTrip(token)));
+
+  checks.push(
+    await timed("Debrief grading (sample transcript)", async () => {
+      const d = await gradeDebrief({
+        profile: amaF1,
+        plan,
+        turns: [
+          { seq: 1, officer: "Why do you want to study in the US?", answer: "Because America is good and I like it.", seconds: 6 },
+          { seq: 2, officer: "Who is paying for your studies?", answer: "My uncle, he is a businessman.", seconds: 5 },
+        ],
+      });
+      const s = d.turns.map((t) => Object.values(t.scores).join("/")).join(" · ");
+      return `${d.turns.length} turns graded (${s}); fix: ${d.top_fixes[0]}`;
     }),
   );
 
   return { checks, liveModels, flashModels };
+}
+
+/** Connects with the ephemeral token exactly as the browser does, and asks the officer to open. */
+async function liveRoundTrip(token: string): Promise<string> {
+  const ai = new GoogleGenAI({ apiKey: token, httpOptions: { apiVersion: "v1alpha" } });
+  const t0 = Date.now();
+  let firstAudioMs = 0;
+  let audioBytes = 0;
+  let text = "";
+  const tools: string[] = [];
+  let closeReason = "";
+  const done = new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`no complete turn in 25 s (audio ${audioBytes} B, text "${text.slice(0, 80)}", close ${closeReason})`)), 25_000);
+    ai.live
+      .connect({
+        model: env.geminiLiveModel,
+        config: {},
+        callbacks: {
+          onmessage: (msg) => {
+            for (const part of msg.serverContent?.modelTurn?.parts ?? []) {
+              if (part.inlineData?.data) {
+                firstAudioMs ||= Date.now() - t0;
+                audioBytes += Math.floor((part.inlineData.data.length * 3) / 4);
+              }
+            }
+            if (msg.serverContent?.outputTranscription?.text) text += msg.serverContent.outputTranscription.text;
+            for (const c of msg.toolCall?.functionCalls ?? []) tools.push(c.name ?? "?");
+            if (msg.serverContent?.turnComplete) {
+              clearTimeout(timer);
+              resolve();
+            }
+          },
+          onerror: (e) => {
+            clearTimeout(timer);
+            reject(new Error(`socket error: ${String((e as ErrorEvent).message ?? e)}`));
+          },
+          onclose: (e) => {
+            closeReason = `${(e as CloseEvent).code} ${(e as CloseEvent).reason}`;
+            clearTimeout(timer);
+            reject(new Error(`closed before a turn: ${closeReason}`));
+          },
+        },
+      })
+      .then((session) => {
+        session.sendClientContent({
+          turns: [{ role: "user", parts: [{ text: "[REFEREE] The applicant has stepped up to your window. Greet them briefly and begin." }] }],
+          turnComplete: true,
+        });
+        void done.finally(() => session.close());
+      }, reject);
+  });
+  await done;
+  const secs = (audioBytes / 48_000).toFixed(1);
+  return `first audio after ${firstAudioMs} ms, ${secs} s of speech, tools [${tools.join(", ")}], officer said: "${text.trim().slice(0, 160)}"`;
 }
