@@ -40,7 +40,8 @@ export async function POST(req: Request, ctx: RouteContext<"/api/sessions/[id]/c
         })),
       );
     }
-    const decision = finalDecision(session.plan, session.referee_state);
+    const elapsedSec = session.started_at ? (Date.now() - new Date(session.started_at).getTime()) / 1000 : 0;
+    const decision = finalDecision(session.plan, session.referee_state, elapsedSec);
     await admin
       .from("sessions")
       .update({

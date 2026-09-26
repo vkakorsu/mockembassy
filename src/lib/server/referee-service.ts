@@ -2,7 +2,16 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { SessionPlan } from "@/lib/domain/director";
 import { DECISION_LINES } from "@/lib/domain/officer-prompt";
-import { decide, recordTurn, shouldEnd, type Decision, type RefereeState, type TurnEvaluation } from "@/lib/domain/referee";
+import {
+  decide,
+  recordTurn,
+  shouldEnd,
+  uncoveredCritical,
+  type Decision,
+  type RefereeState,
+  type SessionOutcome,
+  type TurnEvaluation,
+} from "@/lib/domain/referee";
 
 /**
  * Server-side Referee. Tool calls from the live Officer are applied here;
@@ -115,7 +124,24 @@ export async function applyToolCall(
   return result;
 }
 
-/** Final outcome when the session ends without end_interview (timeout, hang-up). */
-export function finalDecision(plan: SessionPlan, stored: Partial<StoredState>): Decision {
-  return stored.decision ?? decide(toState(plan, stored));
+/**
+ * Outcome when the session ends. If the officer called end_interview, that
+ * decision stands. At the time limit the Referee decides on what it heard. If
+ * the applicant left early, before the key topics were covered, there's no
+ * decision: grading an interview that never happened would mislead.
+ */
+export function finalDecision(
+  plan: SessionPlan,
+  stored: Partial<StoredState>,
+  elapsedSec: number,
+): { outcome: SessionOutcome; reasons: string[] } {
+  if (stored.decision) return stored.decision;
+  const state = toState(plan, stored);
+  if (elapsedSec < plan.targetDurationSec && uncoveredCritical(state).length) {
+    return {
+      outcome: "incomplete",
+      reasons: ["The interview ended before the officer had asked the key questions, so there's no decision."],
+    };
+  }
+  return decide(state);
 }

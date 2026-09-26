@@ -51,6 +51,13 @@ function fromBase64(b64: string) {
 
 const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
+/** Mic RMS above this counts as speech (after browser noise suppression). */
+const VOICE_LEVEL = 0.02;
+/** How long after the applicant stops talking before a silent officer is prompted. */
+const NO_REPLY_MS = 4500;
+/** How long after "Passport, please" before assuming the documents were passed silently. */
+const HANDOVER_MS = 3000;
+
 export function LiveRoom(props: Props) {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("ready");
@@ -76,8 +83,10 @@ export function LiveRoom(props: Props) {
   const officerSpeakingRef = useRef(false);
   const answerSinceRef = useRef<number | null>(null);
   const cutInSentRef = useRef(false);
-  /** When to tell the officer the documents are through the slot, if the applicant stays silent. */
-  const handoverAtRef = useRef<number | null>(null);
+  /** Last time the applicant's mic heard speech, and the officer was last audible. */
+  const lastVoiceAtRef = useRef(0);
+  const lastOfficerAtRef = useRef(0);
+  const nudgedRef = useRef(false);
 
   const now = () => Date.now() - startRef.current;
 
@@ -96,7 +105,6 @@ export function LiveRoom(props: Props) {
   }
 
   function onUserText(text: string) {
-    handoverAtRef.current = null;
     if (lastSpeakerRef.current !== "user") {
       answerSinceRef.current = Date.now();
       cutInSentRef.current = false;
@@ -121,6 +129,7 @@ export function LiveRoom(props: Props) {
     if (!officerSpeakingRef.current) {
       // First audio of a new officer turn.
       officerSpeakingRef.current = true;
+      nudgedRef.current = false;
       officerTurnRef.current += 1;
       answerSinceRef.current = null;
       const silence = behaviourRef.current?.typingSilence;
@@ -190,12 +199,6 @@ export function LiveRoom(props: Props) {
   function onMessage(msg: LiveServerMessage) {
     const sc = msg.serverContent;
     if (sc?.interrupted) stopPlayback();
-    if (sc?.turnComplete && officerTurnRef.current === 1 && lastSpeakerRef.current !== "user") {
-      // The officer asked for the documents. Most people pass them silently, so
-      // after the request finishes playing, tell the officer they're through.
-      const p = playRef.current;
-      handoverAtRef.current = Date.now() + (p ? Math.max(0, (p.next - p.ctx.currentTime) * 1000) : 0) + 2500;
-    }
     if (sc?.turnComplete || sc?.interrupted) officerSpeakingRef.current = false;
     for (const part of sc?.modelTurn?.parts ?? []) {
       if (part.inlineData?.data) playPcm(part.inlineData.data);
@@ -299,6 +302,13 @@ export function LiveRoom(props: Props) {
 
       node.port.onmessage = (e: MessageEvent<{ pcm: ArrayBuffer; level: number }>) => {
         setMicLevel(e.data.level);
+        const p = playRef.current;
+        const officerAudible = p ? p.next > p.ctx.currentTime : false;
+        // Ignore echo of the officer's own voice.
+        if (e.data.level > VOICE_LEVEL && !officerAudible) {
+          lastVoiceAtRef.current = Date.now();
+          nudgedRef.current = false;
+        }
         sessionRef.current?.sendRealtimeInput({ audio: { data: toBase64(e.data.pcm), mimeType: "audio/pcm;rate=16000" } });
       };
 
@@ -307,10 +317,20 @@ export function LiveRoom(props: Props) {
         analyser.getByteFrequencyData(levels);
         setOfficerLevel(levels.reduce((a, b) => a + b, 0) / levels.length / 255);
         setElapsed(Math.floor(now() / 1000));
-        const handoverAt = handoverAtRef.current;
-        if (handoverAt && Date.now() > handoverAt) {
-          handoverAtRef.current = null;
-          referee("The applicant has passed the documents through the slot without speaking. Begin your questions.");
+        // Keep the window from going dead. The model sometimes ends its turn
+        // with only a tool call, and most people pass documents over silently.
+        const t = Date.now();
+        if (officerSpeakingRef.current || playCtx.currentTime < (playRef.current?.next ?? 0)) lastOfficerAtRef.current = t;
+        const voice = lastVoiceAtRef.current;
+        const officer = lastOfficerAtRef.current;
+        if (officer && !nudgedRef.current && !decidedRef.current) {
+          if (voice > officer && t - voice > NO_REPLY_MS) {
+            nudgedRef.current = true;
+            referee("The applicant has finished answering. Ask your next question now, or call end_interview if you have heard enough.");
+          } else if (voice < officer && officerTurnRef.current === 1 && t - officer > HANDOVER_MS) {
+            nudgedRef.current = true;
+            referee("The applicant has passed the documents through the slot without speaking. Begin your questions.");
+          }
         }
         // An impatient officer cuts in on a long answer.
         const cutIn = behaviourRef.current?.cutInAfterSec;

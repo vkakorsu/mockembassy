@@ -12,6 +12,7 @@ const OUTCOME: Record<string, { label: string; cls: string }> = {
   approved: { label: "Approved", cls: "bg-approved/10 text-approved" },
   refused_214b: { label: "214(b) refusal", cls: "bg-refused/10 text-refused" },
   administrative_221g: { label: "221(g)", cls: "bg-stamp/10 text-accent" },
+  incomplete: { label: "Ended early", cls: "bg-fg/5 text-muted" },
 };
 
 const SEVERITY: Record<string, string> = {

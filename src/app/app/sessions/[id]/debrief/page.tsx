@@ -11,6 +11,7 @@ const OUTCOME = {
   approved: { title: "Approved", line: "The officer approved you in this simulation.", cls: "text-approved" },
   refused_214b: { title: "Refused under 214(b)", line: "The officer wasn't convinced in this simulation.", cls: "text-refused" },
   administrative_221g: { title: "221(g)", line: "The officer needed more information.", cls: "text-accent" },
+  incomplete: { title: "No decision", line: "You left before the officer finished.", cls: "text-muted" },
 } as const;
 
 interface TurnScores {

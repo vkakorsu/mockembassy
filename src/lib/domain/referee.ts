@@ -7,6 +7,8 @@ import type { AnswerQuality, SessionPlan } from "./director";
  */
 
 export type Outcome = "approved" | "refused_214b" | "administrative_221g";
+/** The applicant left before the officer had heard the key answers: no decision. */
+export type SessionOutcome = Outcome | "incomplete";
 
 export interface TurnEvaluation {
   probeId: string;
@@ -84,7 +86,9 @@ export function decide(state: RefereeState): Decision {
 
   const avg = critical.reduce((s, t) => s + QUALITY_SCORE[t.quality], 0) / critical.length;
   const weakCritical = critical.filter((t) => t.quality === "weak").length;
-  const bar = 0.55 + 0.15 * state.plan.officer.traits.scepticism;
+  // Accra refuses most F-1 applicants (81% in 2025): "adequate" across the board
+  // satisfies a lenient officer but not a sceptical one.
+  const bar = 0.6 + 0.25 * state.plan.officer.traits.scepticism;
 
   if (weakCritical >= 2 || avg < 0.45) {
     reasons.push("Several key answers didn't show strong reasons to return or clear funding.");
@@ -92,7 +96,11 @@ export function decide(state: RefereeState): Decision {
   }
   if (weakCritical === 0) {
     if (avg >= bar) {
-      reasons.push("Your key answers were clear, specific and consistent.");
+      reasons.push(
+        critical.every((t) => t.quality === "strong")
+          ? "Your key answers were clear, specific and consistent."
+          : "Your key answers were acceptable, and this officer was satisfied. A stricter officer might not be.",
+      );
       return { outcome: "approved", reasons };
     }
     reasons.push("Your answers were acceptable but not convincing enough for this officer.");
@@ -105,4 +113,10 @@ export function decide(state: RefereeState): Decision {
   }
   reasons.push("One key answer was weak and this officer wasn't convinced.");
   return { outcome: "refused_214b", reasons };
+}
+
+/** Critical topics in the plan that the officer never judged. */
+export function uncoveredCritical(state: RefereeState): string[] {
+  const answered = new Set(state.turns.map((t) => t.probeId));
+  return state.plan.probes.filter((p) => p.critical && !answered.has(p.probeId)).map((p) => p.probeId);
 }

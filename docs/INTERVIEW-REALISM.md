@@ -39,3 +39,15 @@ Research review, 26 Sep 2026. The goal is a simulation that behaves like a real 
 - **Transcript turns** are built from Gemini's live transcription. A post-session pass with Gemini 3.5 Transcribe would give word timestamps and better turn boundaries.
 - **Model ids** (`gemini-3.8-live`, `gemini-3.8-flash`) need checking against the live API before launch.
 - **No real Accra interview transcripts yet** to benchmark realism against. That's the Phase 0 plan: 20–30 recent applicants, plus a blind real-vs-simulated test.
+
+## 5. First live run (26 Sep 2026)
+
+What the first real session showed, and what changed:
+
+| Seen | Cause | Fix |
+|---|---|---|
+| Officer went silent after an answer | The model sometimes ends its turn with only a `log_probe` call; the tool response is silent, so nothing follows | Prompt: keep the interview moving in the same turn. Client: if the applicant stopped talking 4.5 s ago and the officer hasn't spoken, a `[REFEREE]` message asks for the next question |
+| "Here" transcribed as Hindi, "in Accra" as Spanish | Input transcription auto-detects language | `languageCodes: ["en-US"]` plus custom vocabulary from the case (school, city, sponsor, employer) |
+| Officer asked for the passport and the first question in one breath | Opening instruction said "then start" | The document request is the whole first turn; if the applicant passes documents silently, the client tells the officer after 3 s |
+| "Approved" after uncertain funding answers, in a session the applicant left early | Officer logged the answers "adequate"; the bar let adequate pass even for a sceptical officer; leaving early still produced a decision | Anchored quality rubric for the officer; bar raised to 0.6 + 0.25 × scepticism; leaving before the key topics are covered gives "No decision" |
+| Debrief grading caught what the officer missed (sponsor also funds a cousin; answering with a question) | Independent grader works | Nothing; this gap is what the admin quality page monitors |

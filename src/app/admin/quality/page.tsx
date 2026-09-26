@@ -24,7 +24,7 @@ export default async function AdminQuality() {
   const avgSecs = ended.length
     ? Math.round(ended.reduce((a, s) => a + (+new Date(s.ended_at!) - +new Date(s.started_at!)) / 1000, 0) / ended.length)
     : 0;
-  const outcomes = ["approved", "refused_214b", "administrative_221g"].map((o) => [o, ended.filter((s) => s.outcome === o).length] as const);
+  const outcomes = ["approved", "refused_214b", "administrative_221g", "incomplete"].map((o) => [o, ended.filter((s) => s.outcome === o).length] as const);
   const debriefs = ["done", "failed", "pending", "running"].map((d) => [d, sessions.filter((s) => s.debrief_status === d).length] as const);
 
   const probes = new Map<string, { n: number; weak: number; contradiction: number }>();

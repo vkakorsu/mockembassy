@@ -145,6 +145,27 @@ export async function gradeDebrief(input: {
 
 /* ------------------------------------------------------------------ live */
 
+/** Names from the case that speech recognition would otherwise mangle. */
+export function caseVocabulary(c: CaseProfile): string[] {
+  const words = [
+    c.applicant.firstName,
+    c.applicant.city,
+    c.study?.school,
+    c.study?.program,
+    c.visit?.hostCity,
+    c.ties.employer,
+    c.ties.role,
+    ...c.funding.sponsors.flatMap((s) => [s.relationship, s.occupation]),
+    ...c.usContacts.map((u) => u.city),
+    "I-20",
+    "Ghana",
+    "Accra",
+    "Kumasi",
+    "cedis",
+  ];
+  return [...new Set(words.filter((w): w is string => Boolean(w && w.trim())).map((w) => w.trim().slice(0, 80)))].slice(0, 40);
+}
+
 /**
  * A single-use ephemeral token with the whole Live config locked server-side,
  * so the browser never sees the API key and can't change the officer's
@@ -181,7 +202,9 @@ export async function createLiveToken(plan: SessionPlan, profile: CaseProfile) {
               })),
             },
           ],
-          inputAudioTranscription: {},
+          // Without a language hint, short Ghanaian-English answers were transcribed
+          // as Hindi or Spanish. Case names bias recognition towards the right words.
+          inputAudioTranscription: { languageCodes: ["en-US"], customVocabulary: caseVocabulary(profile) },
           outputAudioTranscription: {},
           contextWindowCompression: { slidingWindow: {} },
         },
