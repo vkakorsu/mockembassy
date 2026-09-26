@@ -42,10 +42,11 @@ export interface VoiceSummary {
 /** Plain coaching lines about delivery. Deterministic: same audio, same advice. */
 export function deliveryNotes(d: DeliveryMetrics, voice?: VoiceSummary | null): string[] {
   const notes: string[] = [];
-  const speaking = voice?.voicedSec && voice.voicedSec > 2 ? voice.voicedSec : d.seconds;
-  const wpm = speaking > 2 ? Math.round((d.words / speaking) * 60) : 0;
+  // Speaking rate over the whole answer, pauses included (130–170 is typical).
+  // Rate over voiced frames only runs ~50% higher and isn't comparable.
+  const wpm = d.seconds > 2 ? Math.round((d.words / d.seconds) * 60) : 0;
   if (d.tooLong) notes.push(`Long answer (${Math.round(d.seconds)} s). Aim for under 20 seconds.`);
-  if (wpm > 175) notes.push(`Fast: about ${wpm} words a minute. Slow down so every word lands.`);
+  if (wpm > 180) notes.push(`Fast: about ${wpm} words a minute. Slow down so every word lands.`);
   else if (wpm > 0 && wpm < 95 && d.words >= 8) notes.push(`Slow: about ${wpm} words a minute. Know your answer well enough to say it smoothly.`);
   if (voice && voice.longPauses > 0)
     notes.push(`${voice.longPauses} long pause${voice.longPauses > 1 ? "s" : ""} (longest ${voice.longestPauseSec} s). Pauses read as uncertainty.`);

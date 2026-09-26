@@ -162,16 +162,21 @@ export async function runDebrief(sessionId: string) {
             await Promise.all(
               timed.slice(i, i + 4).map(async (t) => {
                 const clip = sliceSamples(samples, sampleRate, t.started_ms! - 400, t.ended_ms! + 800);
-                voice.set(t.seq, voiceMetrics(clip, sampleRate));
+                const m = voiceMetrics(clip, sampleRate);
+                voice.set(t.seq, m);
                 if (t.user_transcript_asr != null) return;
-                const text = await transcribeAnswer({
-                  wav: encodeWav([clip], sampleRate),
-                  question: stripToolText(t.officer_text),
-                  vocabulary,
-                }).catch((e) => {
-                  console.warn("[asr] answer transcription failed:", e instanceof Error ? e.message.slice(0, 200) : e);
-                  return null;
-                });
+                // Near-silence makes speech recognition invent words ("Pichilemu"): record it as nothing said.
+                let text: string | null = "";
+                if (m.voicedSec >= 0.4) {
+                  text = await transcribeAnswer({
+                    wav: encodeWav([clip], sampleRate),
+                    question: stripToolText(t.officer_text),
+                    vocabulary,
+                  }).catch((e) => {
+                    console.warn("[asr] answer transcription failed:", e instanceof Error ? e.message.slice(0, 200) : e);
+                    return null;
+                  });
+                }
                 if (text === null) return;
                 t.user_transcript_asr = text;
                 await db.from("turns").update({ user_transcript_asr: text }).eq("session_id", sessionId).eq("seq", t.seq);
@@ -184,7 +189,8 @@ export async function runDebrief(sessionId: string) {
       }
     }
     const answerText = (t: { user_transcript_corrected: string | null; user_transcript_asr: string | null; user_transcript_raw: string | null }) =>
-      (t.user_transcript_corrected ?? (t.user_transcript_asr || null) ?? t.user_transcript_raw ?? "").trim();
+      // An empty second transcript means nothing was said; only null means it's missing.
+      (t.user_transcript_corrected ?? t.user_transcript_asr ?? t.user_transcript_raw ?? "").trim();
 
     const { data: noteRows } = await db
       .from("case_notes")

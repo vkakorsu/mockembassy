@@ -57,9 +57,12 @@ export default async function DebriefPage(props: PageProps<"/app/sessions/[id]/d
   // The closing decision line isn't a question: hide unanswered turns after the last answer.
   // Best transcript first: the user's correction, then the careful one from the recording, then the live one.
   const answeredText = (t: { user_transcript_raw: string | null; user_transcript_corrected: string | null; user_transcript_asr: string | null }) =>
-    (t.user_transcript_corrected ?? (t.user_transcript_asr || null) ?? t.user_transcript_raw ?? "").trim();
+    (t.user_transcript_corrected ?? t.user_transcript_asr ?? t.user_transcript_raw ?? "").trim();
   const lastAnswered = (turns ?? []).map((t) => Boolean(answeredText(t))).lastIndexOf(true);
-  const shown = (turns ?? []).slice(0, lastAnswered + 1);
+  // Hide the closing decision line, and a passport handed over without a word.
+  const shown = (turns ?? [])
+    .slice(0, lastAnswered + 1)
+    .filter((t) => !(t.seq === 1 && !String(t.officer_text).includes("?") && !answeredText(t)));
   const o = s.outcome ? OUTCOME[s.outcome as keyof typeof OUTCOME] : null;
   const debrief = s.debrief as { summary?: string; top_fixes?: string[]; first_minute_seqs?: number[] } | null;
   const grading = s.debrief_status === "pending" || s.debrief_status === "running";
