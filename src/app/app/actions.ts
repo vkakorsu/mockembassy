@@ -11,7 +11,7 @@ import { moveInterviewDate } from "@/lib/domain/pass";
 import { probesFor } from "@/lib/domain/probes";
 import { env, features } from "@/lib/env";
 import { requireUser } from "@/lib/server/auth";
-import { runExtraction } from "@/lib/server/jobs";
+import { runDebrief, runExtraction } from "@/lib/server/jobs";
 import { initializeTransaction, priceFor, PURCHASABLE } from "@/lib/server/paystack";
 import { caseEntitlement, getCase, latestProfile, pastSessions, readinessFrom } from "@/lib/server/repo";
 import { createServiceClient } from "@/lib/supabase/server";
@@ -303,4 +303,37 @@ export async function reportOutcome(caseId: string, formData: FormData) {
     consent_to_aggregate: formData.get("consent") === "on",
   });
   redirect(`/app/cases/${caseId}?notice=outcome-thanks`);
+}
+
+/* ------------------------------------------------------ transcript fixes */
+
+const MAX_REGRADES = 5;
+
+/**
+ * Speech recognition mis-hears accented English. The user can correct what
+ * they said; the debrief is then graded again from the corrected words.
+ */
+export async function correctTranscript(sessionId: string, seq: number, formData: FormData) {
+  const { supabase } = await requireUser();
+  const text = z.string().trim().min(1).max(4000).parse(formData.get("answer"));
+  const { data: session } = await supabase.from("sessions").select("id, debrief").eq("id", sessionId).maybeSingle();
+  if (!session) throw new Error("Session not found");
+  const regrades = Number((session.debrief as { regrades?: number } | null)?.regrades ?? 0);
+  if (regrades >= MAX_REGRADES) redirect(`/app/sessions/${sessionId}/debrief?notice=regrade-limit`);
+
+  // RLS + the turns trigger only let the owner change user_transcript_corrected.
+  const { error } = await supabase
+    .from("turns")
+    .update({ user_transcript_corrected: text })
+    .eq("session_id", sessionId)
+    .eq("seq", seq);
+  if (error) throw error;
+
+  const admin = createServiceClient();
+  await admin
+    .from("sessions")
+    .update({ debrief_status: "pending", debrief: { ...((session.debrief as object) ?? {}), regrades: regrades + 1 } })
+    .eq("id", sessionId);
+  if (features.gemini) after(() => runDebrief(sessionId));
+  redirect(`/app/sessions/${sessionId}/debrief`);
 }

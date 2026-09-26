@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { SignUpForm } from "@/components/app/auth-forms";
 import { AuthShell } from "@/components/app/auth-shell";
 import { env, features } from "@/lib/env";
+import { getUser } from "@/lib/server/auth";
 
 export const metadata: Metadata = {
   title: "Create your account",
@@ -12,8 +13,9 @@ export const metadata: Metadata = {
 };
 export const dynamic = "force-dynamic";
 
-export default function SignUp() {
+export default async function SignUp() {
   if (!features.supabase) redirect("/setup");
+  if (await getUser()) redirect("/app");
   return (
     <AuthShell
       title="Create your account"

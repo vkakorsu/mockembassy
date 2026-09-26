@@ -3,6 +3,7 @@ import { CaseProfile } from "@/lib/domain/case";
 import { deliveryMetrics } from "@/lib/domain/delivery";
 import type { SessionPlan } from "@/lib/domain/director";
 import { mergeDraft, type DraftConflict } from "@/lib/domain/draft";
+import { mergeGrades } from "@/lib/domain/grade-merge";
 import { validateRewrite } from "@/lib/domain/rewrite-validator";
 import { extractFacts, gradeDebrief } from "@/lib/server/gemini";
 import { createServiceClient } from "@/lib/supabase/server";
@@ -57,7 +58,7 @@ export async function runDebrief(sessionId: string) {
   const db = createServiceClient();
   await db.from("sessions").update({ debrief_status: "running" }).eq("id", sessionId);
   try {
-    const { data: session } = await db.from("sessions").select("case_id, profile_version, plan").eq("id", sessionId).single();
+    const { data: session } = await db.from("sessions").select("case_id, profile_version, plan, debrief").eq("id", sessionId).single();
     const { data: prof } = await db
       .from("case_profiles")
       .select("profile")
@@ -79,7 +80,13 @@ export async function runDebrief(sessionId: string) {
       answer: (t.user_transcript_corrected ?? t.user_transcript_raw ?? "").trim(),
       seconds: t.started_ms != null && t.ended_ms != null ? (t.ended_ms - t.started_ms) / 1000 : 0,
     }));
-    const graded = input.length ? await gradeDebrief({ profile, plan, turns: input }) : null;
+    // Grade twice and merge (src/lib/domain/grade-merge.ts); one failed run still yields a debrief.
+    const runs = input.length
+      ? await Promise.allSettled([gradeDebrief({ profile, plan, turns: input }), gradeDebrief({ profile, plan, turns: input })])
+      : [];
+    const ok = runs.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+    if (input.length && !ok.length) throw (runs[0] as PromiseRejectedResult).reason;
+    const { merged: graded, agreement } = ok.length ? mergeGrades(ok[0], ok[1] ?? null) : { merged: null, agreement: null };
 
     for (const t of input) {
       const g = graded?.turns.find((x) => x.seq === t.seq);
@@ -119,6 +126,8 @@ export async function runDebrief(sessionId: string) {
           summary: graded?.summary ?? "You didn't answer any questions in this session.",
           top_fixes: graded?.top_fixes ?? [],
           first_minute_seqs: firstMinute.map((t) => t.seq),
+          judge_agreement: agreement,
+          regrades: (session!.debrief as { regrades?: number } | null)?.regrades ?? 0,
         },
         debrief_status: "done",
       })

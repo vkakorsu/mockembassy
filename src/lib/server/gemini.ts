@@ -1,9 +1,10 @@
 import "server-only";
-import { Behavior, GoogleGenAI, Modality } from "@google/genai";
+import { Behavior, EndSensitivity, GoogleGenAI, Modality } from "@google/genai";
 import { z } from "zod";
 import type { CaseProfile } from "@/lib/domain/case";
 import type { SessionPlan } from "@/lib/domain/director";
 import { ExtractedFacts } from "@/lib/domain/draft";
+import { liveBehaviour } from "@/lib/domain/live-behaviour";
 import { buildOfficerInstruction, officerTools } from "@/lib/domain/officer-prompt";
 import { env, requireEnv } from "@/lib/env";
 
@@ -75,7 +76,15 @@ export type Debrief = z.infer<typeof Debrief>;
 
 const DEBRIEF_RULES = `You are a strict, kind US visa interview coach for Ghanaian applicants. Grade each applicant answer.
 Rules for "stronger_answer": rewrite the applicant's answer in 1–2 short sentences (under 20 seconds spoken) using ONLY facts in the confirmed profile or in the applicant's own words. Never invent people, numbers, employers, places or plans. If the true facts are weak, set stronger_answer to the best honest version and explain in "missing_evidence" what evidence is missing. Never suggest lying or hiding facts.
-Red flags include: intent to work or stay, vague or unknown sponsor, memorised-sounding speech, contradictions with the profile, rambling.`;
+Red flags include: intent to work or stay, vague or unknown sponsor, memorised-sounding speech, contradictions with the profile, rambling.
+
+Score each answer 1–5 against these anchors (be consistent; the same answer must get the same scores):
+- directness: 5 = the first sentence answers the question; 3 = answers it after a detour; 1 = never answers it.
+- specificity: 5 = names, numbers or places from the case; 3 = some specifics, some vague; 1 = generic ("my family will support me").
+- consistency: 5 = matches the profile and earlier answers; 3 = unclear or partly mismatched; 1 = contradicts them.
+- conciseness: 5 = under ~15 seconds with nothing extra; 3 = ~20–35 seconds or some padding; 1 = rambling, or volunteers risky extra facts.
+The transcript came from speech recognition and may mis-hear Ghanaian-accented English. Don't penalise obvious transcription errors, and don't grade accent or grammar.
+For students, judge PRESENT intent to return; don't require a detailed long-range career plan from young applicants (9 FAM 402.5-5).`;
 
 export async function gradeDebrief(input: {
   profile: CaseProfile;
@@ -102,7 +111,7 @@ export async function gradeDebrief(input: {
       systemInstruction: DEBRIEF_RULES,
       responseMimeType: "application/json",
       responseJsonSchema: jsonSchema(Debrief),
-      temperature: 0.2,
+      temperature: 0,
     },
   });
   return Debrief.parse(JSON.parse(res.text ?? "{}"));
@@ -117,17 +126,27 @@ export async function gradeDebrief(input: {
  */
 export async function createLiveToken(plan: SessionPlan, profile: CaseProfile) {
   const now = Date.now();
+  const behaviour = liveBehaviour(plan);
   const token = await genai("v1alpha").authTokens.create({
     config: {
       uses: 1,
-      expireTime: new Date(now + 30 * 60_000).toISOString(),
+      // The token's lifetime bounds how long (and so how expensively) a session can run.
+      expireTime: new Date(now + behaviour.tokenLifetimeSec * 1000).toISOString(),
       newSessionExpireTime: new Date(now + 2 * 60_000).toISOString(),
       liveConnectConstraints: {
         model: env.geminiLiveModel,
         config: {
           responseModalities: [Modality.AUDIO],
           systemInstruction: buildOfficerInstruction(plan, profile),
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: plan.officer.voice } } },
+          speechConfig: { languageCode: "en-US", voiceConfig: { prebuiltVoiceConfig: { voiceName: plan.officer.voice } } },
+          realtimeInputConfig: {
+            automaticActivityDetection: {
+              // Don't treat a thinking pause as the end of an answer.
+              endOfSpeechSensitivity: EndSensitivity.END_SENSITIVITY_LOW,
+              prefixPaddingMs: 300,
+              silenceDurationMs: behaviour.endOfTurnSilenceMs,
+            },
+          },
           tools: [
             {
               functionDeclarations: officerTools.map((t) => ({
@@ -144,5 +163,5 @@ export async function createLiveToken(plan: SessionPlan, profile: CaseProfile) {
       lockAdditionalFields: [],
     },
   });
-  return { token: requireEnv(token.name, "ephemeral token"), model: env.geminiLiveModel };
+  return { token: requireEnv(token.name, "ephemeral token"), model: env.geminiLiveModel, behaviour };
 }

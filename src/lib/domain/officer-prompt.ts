@@ -46,10 +46,11 @@ export function officerPersona(plan: SessionPlan): string {
 
 const EVENT_TEXT: Record<SessionPlan["events"][number], string> = {
   ask_to_repeat: "Once, ask the applicant to repeat an answer (\"Sorry, say that again?\").",
-  typing_silence: "Once, stay silent for about four seconds before your next question, as if typing.",
+  // Typing silences and cut-ins are timed by the client (live-behaviour.ts); the model can't hold real silence.
+  typing_silence: "",
   document_request:
     "Once, ask to see one relevant document. Call log_document with whether they said they have it.",
-  interrupt_mid_answer: "Once, interrupt an answer that is running long and move on.",
+  interrupt_mid_answer: "",
   follow_volunteered: "If they volunteer a new fact, ask one follow-up about it.",
   ds160_cross_check:
     "Once, check an answer against the file (e.g. 'You didn't list relatives in the US?') if there is a mismatch.",
@@ -78,15 +79,27 @@ ${JSON.stringify(officerFile(profile), null, 1)}
 WHAT TO TEST, in roughly this order (rephrase naturally if you like, keep the substance):
 ${probes}
 
-Follow the conversation: if an answer raises something new, you may ask one follow-up about it before moving on.
-${plan.events.map((e) => `- ${EVENT_TEXT[e]}`).join("\n")}
+HOW A REAL WINDOW INTERVIEW RUNS:
+- Open the way officers do: a short greeting, then ask for the passport${profile.visaType === "F1" ? " and I-20" : ""} as if it's being passed through the slot ("Good morning. Passport${profile.visaType === "F1" ? " and I-20" : ""}, please."). Then start.
+- You decide on the totality of what you hear. The burden is on the applicant to convince you.
+${
+  profile.visaType === "F1"
+    ? "- Students: judge their PRESENT intent to return. Young students aren't expected to have a detailed long-range plan, and a plan that may change isn't disqualifying. Don't question the school's admission decision; you may check English and academic preparation.\n"
+    : ""
+}- Follow the conversation: if an answer raises something new, you may ask one follow-up about it before moving on.
+- If you didn't catch something, say so ("Sorry?") instead of guessing what they said.
+${plan.events
+  .map((e) => EVENT_TEXT[e])
+  .filter(Boolean)
+  .map((t) => `- ${t}`)
+  .join("\n")}
 
 TOOLS (call silently; they don't pause the conversation):
 - After each answer to a planned topic, call log_probe with probe_id and your honest judgement: strong (clear, specific, consistent), adequate, weak (vague, rambling, evasive, missing key facts) or contradiction (conflicts with the file or an earlier answer).
 - If an answer conflicts with the file, also call log_inconsistency.
 - When you have heard enough (about ${Math.round(plan.targetDurationSec / 60)} minute(s)${plan.earlyDecisionAllowed ? ", or earlier if the key answers are clearly strong" : ""}), call end_interview. Then say ONLY the decision line it returns, in your own voice, and stop.
 
-Messages that start with [REFEREE] come from the system, not the applicant. Follow them.`;
+Messages that start with [REFEREE] come from the system, not the applicant. Follow them. "[REFEREE] Cut in" means: interrupt now, politely but firmly ("Okay, let me stop you there."), and ask your next question.`;
 }
 
 /** Tool declarations for the Live session (JSON Schema parameters). */

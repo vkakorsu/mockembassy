@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { rateSession } from "@/app/app/actions";
+import { correctTranscript, rateSession } from "@/app/app/actions";
 import { AutoRefresh } from "@/components/app/auto-refresh";
 import { BackLink, Card, PageTitle } from "@/components/app/ui";
 import type { DeliveryMetrics } from "@/lib/domain/delivery";
@@ -33,6 +33,7 @@ function Score({ label, v }: { label: string; v?: number }) {
 
 export default async function DebriefPage(props: PageProps<"/app/sessions/[id]/debrief">) {
   const { id } = await props.params;
+  const { notice } = await props.searchParams;
   const { supabase } = await requireUser(`/app/sessions/${id}/debrief`);
   const { data: s } = await supabase
     .from("sessions")
@@ -55,6 +56,9 @@ export default async function DebriefPage(props: PageProps<"/app/sessions/[id]/d
     <>
       {grading && <AutoRefresh />}
       <BackLink href={`/app/cases/${s.case_id}`}>Back to your case</BackLink>
+      {notice === "regrade-limit" && (
+        <p role="status" className="mb-6 text-sm text-refused">You&rsquo;ve reached the re-grade limit for this session.</p>
+      )}
       <PageTitle eyebrow={`Debrief · ${plan.officer.name}${seconds ? ` · ${Math.floor(seconds / 60)}m ${seconds % 60}s` : ""}`} title={o?.title ?? "Session ended"}>
         {o?.line} This is a training signal, not a prediction.
       </PageTitle>
@@ -149,6 +153,17 @@ export default async function DebriefPage(props: PageProps<"/app/sessions/[id]/d
                   </div>
                 )}
                 {sc.missing_evidence && <p className="mt-3 text-sm text-muted">Evidence gap: {sc.missing_evidence}</p>}
+                {answer && (
+                  <details className="mt-4 border-t border-line pt-3">
+                    <summary className="label cursor-pointer text-muted">Did we mishear you? Correct it</summary>
+                    <form action={correctTranscript.bind(null, id, t.seq)} className="mt-3 grid gap-2">
+                      <textarea name="answer" defaultValue={answer} rows={3} maxLength={4000} className="w-full rounded-[3px] border border-ink bg-card p-3 text-sm" />
+                      <button className="w-fit rounded-[3px] border border-ink px-4 py-2 text-sm font-semibold hover:bg-ink hover:text-on-ink">
+                        Save and re-grade
+                      </button>
+                    </form>
+                  </details>
+                )}
               </Card>
             );
           })}

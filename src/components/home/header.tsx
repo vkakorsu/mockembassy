@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { AuthNav } from "@/components/auth-nav";
 import { Logo } from "@/components/logo";
+import { env } from "@/lib/env";
 
 const links = [
   { href: "#how", label: "How it works" },
@@ -23,14 +25,7 @@ export function Header() {
             </a>
           ))}
         </nav>
-        <div className="flex items-center gap-4 text-sm">
-          <Link href="/login" className="hidden underline-offset-4 hover:underline sm:inline">
-            Sign in
-          </Link>
-          <Link href="/signup" className="rounded-[3px] bg-ink px-4 py-2 font-semibold text-on-ink hover:bg-stamp">
-            Create account
-          </Link>
-        </div>
+        <AuthNav url={env.supabaseUrl!} publishableKey={env.supabasePublishableKey!} />
       </div>
     </header>
   );

@@ -4,12 +4,14 @@ import { redirect } from "next/navigation";
 import { SignInForm } from "@/components/app/auth-forms";
 import { AuthShell } from "@/components/app/auth-shell";
 import { env, features } from "@/lib/env";
+import { getUser } from "@/lib/server/auth";
 
 export const metadata: Metadata = { title: "Sign in", robots: { index: false } };
 export const dynamic = "force-dynamic";
 
 export default async function Login(props: PageProps<"/login">) {
   if (!features.supabase) redirect("/setup");
+  if (await getUser()) redirect("/app");
   const { next, notice } = await props.searchParams;
   const safeNext = typeof next === "string" && /^\/(app|admin)(\/|$)/.test(next) ? next : "/app";
   return (

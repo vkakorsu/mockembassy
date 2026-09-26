@@ -4,6 +4,7 @@ import { FunctionResponseScheduling, GoogleGenAI, type LiveServerMessage, type S
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Guilloche } from "@/components/guilloche";
+import type { LiveBehaviour } from "@/lib/domain/live-behaviour";
 import { createClient } from "@/lib/supabase/browser";
 
 /**
@@ -69,6 +70,12 @@ export function LiveRoom(props: Props) {
   const cleanupRef = useRef<() => void>(() => {});
   const playRef = useRef<{ ctx: AudioContext; analyser: AnalyserNode; next: number; sources: AudioBufferSourceNode[] } | null>(null);
   const recorderRef = useRef<{ rec: MediaRecorder; chunks: Blob[] } | null>(null);
+  // Client-timed realism (src/lib/domain/live-behaviour.ts).
+  const behaviourRef = useRef<LiveBehaviour | null>(null);
+  const officerTurnRef = useRef(0);
+  const officerSpeakingRef = useRef(false);
+  const answerSinceRef = useRef<number | null>(null);
+  const cutInSentRef = useRef(false);
 
   const now = () => Date.now() - startRef.current;
 
@@ -87,6 +94,10 @@ export function LiveRoom(props: Props) {
   }
 
   function onUserText(text: string) {
+    if (lastSpeakerRef.current !== "user") {
+      answerSinceRef.current = Date.now();
+      cutInSentRef.current = false;
+    }
     const turn = currentTurn();
     if (turn.startedMs === null) turn.startedMs = now();
     turn.endedMs = now();
@@ -104,6 +115,17 @@ export function LiveRoom(props: Props) {
     const src = p.ctx.createBufferSource();
     src.buffer = buffer;
     src.connect(p.analyser);
+    if (!officerSpeakingRef.current) {
+      // First audio of a new officer turn.
+      officerSpeakingRef.current = true;
+      officerTurnRef.current += 1;
+      answerSinceRef.current = null;
+      const silence = behaviourRef.current?.typingSilence;
+      if (silence && silence.turn === officerTurnRef.current) {
+        // The officer looks down and types before speaking.
+        p.next = Math.max(p.next, p.ctx.currentTime + silence.seconds);
+      }
+    }
     const at = Math.max(p.ctx.currentTime + 0.02, p.next);
     src.start(at);
     p.next = at + buffer.duration;
@@ -165,6 +187,7 @@ export function LiveRoom(props: Props) {
   function onMessage(msg: LiveServerMessage) {
     const sc = msg.serverContent;
     if (sc?.interrupted) stopPlayback();
+    if (sc?.turnComplete || sc?.interrupted) officerSpeakingRef.current = false;
     for (const part of sc?.modelTurn?.parts ?? []) {
       if (part.inlineData?.data) playPcm(part.inlineData.data);
     }
@@ -219,6 +242,7 @@ export function LiveRoom(props: Props) {
       const tokenRes = await fetch(`/api/sessions/${props.sessionId}/token`, { method: "POST" });
       const tokenJson = await tokenRes.json();
       if (!tokenRes.ok) throw new Error(tokenJson.error ?? "Couldn't open the window");
+      behaviourRef.current = tokenJson.behaviour ?? null;
 
       const mic = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
@@ -274,6 +298,13 @@ export function LiveRoom(props: Props) {
         analyser.getByteFrequencyData(levels);
         setOfficerLevel(levels.reduce((a, b) => a + b, 0) / levels.length / 255);
         setElapsed(Math.floor(now() / 1000));
+        // An impatient officer cuts in on a long answer.
+        const cutIn = behaviourRef.current?.cutInAfterSec;
+        const since = answerSinceRef.current;
+        if (cutIn && since && !cutInSentRef.current && !decidedRef.current && Date.now() - since > cutIn * 1000) {
+          cutInSentRef.current = true;
+          referee(`Cut in. The applicant has been answering for ${cutIn} seconds.`);
+        }
       }, 100);
 
       cleanupRef.current = () => {
