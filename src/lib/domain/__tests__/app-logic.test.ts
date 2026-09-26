@@ -118,8 +118,8 @@ describe("liveBehaviour", () => {
   });
 
   it("gives impatient officers a shorter end-of-turn silence, never under 0.7 s", () => {
-    expect(liveBehaviour(withTraits(0)).endOfTurnSilenceMs).toBe(700);
-    expect(liveBehaviour(withTraits(1)).endOfTurnSilenceMs).toBe(1600);
+    expect(liveBehaviour(withTraits(0)).endOfTurnSilenceMs).toBe(500);
+    expect(liveBehaviour(withTraits(1)).endOfTurnSilenceMs).toBe(1100);
   });
 
   it("only cuts in when the officer is impatient or the plan says so", () => {

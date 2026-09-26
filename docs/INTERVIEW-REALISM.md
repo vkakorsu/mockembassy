@@ -65,3 +65,7 @@ Applicants' cases differ in ways a fixed form can't hold, so each document is no
 Why not give the officer everything: a real Accra officer works from the DS-160 and SEVIS record and rarely reads a bank statement unless they ask for it. An officer who knows every line would be less realistic, and an unconfirmed misreading could have the officer, or a coaching rewrite, state something untrue.
 
 The Director turns one kept note into a question in most sessions (never the opener, not repeated within two sessions), weighted towards funding and history. For folder notes the officer first asks to see the document. Bank statement amounts are kept in their original currency and converted to USD at `FX_GHS_PER_USD` for the user to confirm.
+
+### Reply delay (second live run)
+
+The officer took ~6 s to answer. It usually ends its turn with only `log_probe`; the browser waited for our server before replying to that call, then told the model to stay silent, so only the 4.5 s watchdog got it talking. Bookkeeping calls are now answered in the browser at once (server relay in the background) with `WHEN_IDLE` when the officer hasn't spoken since the answer, which makes it continue immediately. End-of-turn silence is now 0.5–1.1 s. Each turn records `reply_latency_ms` (end of answer → officer's next audio); the admin quality page shows the median and 90th percentile. Answer timing and cut-ins now come from the mic, not the transcript, which arrives after the answer ends.

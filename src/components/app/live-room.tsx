@@ -17,8 +17,11 @@ type Phase = "ready" | "connecting" | "live" | "ending" | "error";
 interface Turn {
   officer: string;
   answer: string;
+  /** When the applicant's voice started and stopped (mic-based; transcription arrives late). */
   startedMs: number | null;
   endedMs: number | null;
+  /** From the end of this answer to the officer's next audio. */
+  replyLatencyMs: number | null;
 }
 
 interface Props {
@@ -51,10 +54,12 @@ function fromBase64(b64: string) {
 
 const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
+/** Tools the officer waits on (see BLOCKING_TOOLS in src/lib/server/gemini.ts). */
+const BLOCKING_TOOLS = new Set(["end_interview", "request_document"]);
 /** Mic RMS above this counts as speech (after browser noise suppression). */
 const VOICE_LEVEL = 0.02;
 /** How long after the applicant stops talking before a silent officer is prompted. */
-const NO_REPLY_MS = 4500;
+const NO_REPLY_MS = 3500;
 /** How long after "Passport, please" before assuming the documents were passed silently. */
 const HANDOVER_MS = 3000;
 
@@ -92,26 +97,23 @@ export function LiveRoom(props: Props) {
 
   function currentTurn(): Turn {
     const t = turnsRef.current;
-    if (!t.length) t.push({ officer: "", answer: "", startedMs: null, endedMs: null });
+    if (!t.length) t.push({ officer: "", answer: "", startedMs: null, endedMs: null, replyLatencyMs: null });
     return t[t.length - 1];
   }
 
   function onOfficerText(text: string) {
     if (lastSpeakerRef.current === "user") {
-      turnsRef.current.push({ officer: "", answer: "", startedMs: null, endedMs: null });
+      turnsRef.current.push({ officer: "", answer: "", startedMs: null, endedMs: null, replyLatencyMs: null });
     }
     lastSpeakerRef.current = "officer";
     currentTurn().officer += text;
   }
 
   function onUserText(text: string) {
-    if (lastSpeakerRef.current !== "user") {
-      answerSinceRef.current = Date.now();
-      cutInSentRef.current = false;
-    }
     const turn = currentTurn();
+    // Fallback only: the mic sets these as the applicant speaks.
     if (turn.startedMs === null) turn.startedMs = now();
-    turn.endedMs = now();
+    if (turn.endedMs === null) turn.endedMs = now();
     turn.answer += text;
     lastSpeakerRef.current = "user";
   }
@@ -130,6 +132,10 @@ export function LiveRoom(props: Props) {
       // First audio of a new officer turn.
       officerSpeakingRef.current = true;
       nudgedRef.current = false;
+      const answered = turnsRef.current.at(-1);
+      if (answered && answered.startedMs !== null && answered.replyLatencyMs === null && lastVoiceAtRef.current > lastOfficerAtRef.current) {
+        answered.replyLatencyMs = Date.now() - lastVoiceAtRef.current;
+      }
       officerTurnRef.current += 1;
       answerSinceRef.current = null;
       const silence = behaviourRef.current?.typingSilence;
@@ -163,16 +169,45 @@ export function LiveRoom(props: Props) {
     sessionRef.current?.sendClientContent({ turns: [{ role: "user", parts: [{ text: `[REFEREE] ${text}` }] }], turnComplete: true });
   }
 
+  async function relay(call: { name?: string; args?: Record<string, unknown> }) {
+    const res = await fetch(`/api/sessions/${props.sessionId}/events`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: call.name, args: call.args ?? {} }),
+    });
+    return (await res.json()) as { response?: Record<string, unknown>; speak?: boolean; wrapUp?: boolean };
+  }
+
+  function wrapUpIfDue(result: { wrapUp?: boolean }) {
+    if (result.wrapUp && !wrapSentRef.current) {
+      wrapSentRef.current = true;
+      referee("You have heard enough. Call end_interview now.");
+    }
+  }
+
   async function handleToolCalls(msg: LiveServerMessage) {
     const calls = msg.toolCall?.functionCalls ?? [];
     for (const call of calls) {
-      try {
-        const res = await fetch(`/api/sessions/${props.sessionId}/events`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: call.name, args: call.args ?? {} }),
+      if (!BLOCKING_TOOLS.has(call.name ?? "")) {
+        // Bookkeeping (log_probe and friends): answer at once, without waiting for
+        // the server. If the officer's turn was only this call, WHEN_IDLE makes it
+        // go on to the next question now instead of sitting in silence.
+        const officerQuiet = lastVoiceAtRef.current > lastOfficerAtRef.current;
+        sessionRef.current?.sendToolResponse({
+          functionResponses: [
+            {
+              id: call.id,
+              name: call.name,
+              response: officerQuiet ? { recorded: true, instruction: "Continue the interview now." } : { recorded: true },
+              scheduling: officerQuiet ? FunctionResponseScheduling.WHEN_IDLE : FunctionResponseScheduling.SILENT,
+            },
+          ],
         });
-        const result = await res.json();
+        void relay(call).then(wrapUpIfDue, () => {});
+        continue;
+      }
+      try {
+        const result = await relay(call);
         if (call.name === "end_interview") decidedRef.current = true;
         sessionRef.current?.sendToolResponse({
           functionResponses: [
@@ -184,13 +219,10 @@ export function LiveRoom(props: Props) {
             },
           ],
         });
-        if (result.wrapUp && !wrapSentRef.current) {
-          wrapSentRef.current = true;
-          referee("You have heard enough. Call end_interview now.");
-        }
+        wrapUpIfDue(result);
       } catch {
         sessionRef.current?.sendToolResponse({
-          functionResponses: [{ id: call.id, name: call.name, response: { ok: false }, scheduling: FunctionResponseScheduling.SILENT }],
+          functionResponses: [{ id: call.id, name: call.name, response: { ok: false }, scheduling: FunctionResponseScheduling.WHEN_IDLE }],
         });
       }
     }
@@ -306,8 +338,19 @@ export function LiveRoom(props: Props) {
         const officerAudible = p ? p.next > p.ctx.currentTime : false;
         // Ignore echo of the officer's own voice.
         if (e.data.level > VOICE_LEVEL && !officerAudible) {
-          lastVoiceAtRef.current = Date.now();
+          const t = Date.now();
+          if (lastVoiceAtRef.current <= lastOfficerAtRef.current) {
+            // First speech since the officer spoke: a new answer begins.
+            answerSinceRef.current = t;
+            cutInSentRef.current = false;
+          }
+          lastVoiceAtRef.current = t;
           nudgedRef.current = false;
+          if (startRef.current) {
+            const turn = currentTurn();
+            if (turn.startedMs === null) turn.startedMs = t - startRef.current;
+            turn.endedMs = t - startRef.current;
+          }
         }
         sessionRef.current?.sendRealtimeInput({ audio: { data: toBase64(e.data.pcm), mimeType: "audio/pcm;rate=16000" } });
       };

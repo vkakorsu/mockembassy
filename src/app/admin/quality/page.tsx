@@ -10,10 +10,18 @@ const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 100)}%` : "�
 export default async function AdminQuality() {
   const { db } = await requireAdmin();
   const since = daysAgo(30);
-  const [{ data: sessionRows }, { data: probeRows }] = await Promise.all([
+  const [{ data: sessionRows }, { data: probeRows }, { data: latencyRows }] = await Promise.all([
     db.from("sessions").select("case_id, client_fp, plan, outcome, realism_rating, debrief_status, started_at, ended_at, mode").gte("created_at", since).limit(20000),
     db.from("probe_results").select("probe_id, quality").gte("created_at", since).limit(50000),
+    db
+      .from("turns")
+      .select("reply_latency_ms, sessions!inner(created_at)")
+      .not("reply_latency_ms", "is", null)
+      .gte("sessions.created_at", since)
+      .limit(50000),
   ]);
+  const latencies = (latencyRows ?? []).map((r) => r.reply_latency_ms as number).sort((a, b) => a - b);
+  const q = (p: number) => (latencies.length ? `${(latencies[Math.min(latencies.length - 1, Math.floor(p * latencies.length))] / 1000).toFixed(1)} s` : "–");
   const sessions = sessionRows ?? [];
   const ended = sessions.filter((s) => s.ended_at && s.started_at);
   const rated = sessions.filter((s) => s.realism_rating);
@@ -56,11 +64,12 @@ export default async function AdminQuality() {
   return (
     <>
       <PageHead title="Session quality">Last 30 days. Is the officer realistic, varied and fair? See docs/PLAN.md §2.2.7.</PageHead>
-      <div className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-5">
         <Stat label="“Felt real”" value={avgRating} sub={`out of 5 · ${rated.length} ratings`} />
         <Stat label="Question novelty" value={pct(novelty, 1)} sub="not asked in the user's last 3 sessions" />
         <Stat label="Sessions" value={sessions.length} sub={`${ended.length} finished`} />
         <Stat label="Average length" value={`${Math.floor(avgSecs / 60)}:${String(avgSecs % 60).padStart(2, "0")}`} sub="min:sec" />
+        <Stat label="Officer reply time" value={q(0.5)} sub={`median after an answer · 90th percentile ${q(0.9)}`} />
       </div>
 
       <Section title="Simulated outcomes" note="Share of finished sessions. If nearly everyone is approved or refused, the Referee's thresholds need tuning.">

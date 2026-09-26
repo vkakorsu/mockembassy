@@ -48,6 +48,11 @@ export default async function DebriefPage(props: PageProps<"/app/sessions/[id]/d
     .eq("session_id", id)
     .order("seq");
   const plan = s.plan as SessionPlan;
+  // The closing decision line isn't a question: hide unanswered turns after the last answer.
+  const answeredText = (t: { user_transcript_raw: string | null; user_transcript_corrected: string | null }) =>
+    (t.user_transcript_corrected ?? t.user_transcript_raw ?? "").trim();
+  const lastAnswered = (turns ?? []).map((t) => Boolean(answeredText(t))).lastIndexOf(true);
+  const shown = (turns ?? []).slice(0, lastAnswered + 1);
   const o = s.outcome ? OUTCOME[s.outcome as keyof typeof OUTCOME] : null;
   const debrief = s.debrief as { summary?: string; top_fixes?: string[]; first_minute_seqs?: number[] } | null;
   const grading = s.debrief_status === "pending" || s.debrief_status === "running";
@@ -117,8 +122,8 @@ export default async function DebriefPage(props: PageProps<"/app/sessions/[id]/d
         </div>
 
         <div className="space-y-4">
-          {(turns ?? []).length === 0 && <Card><p className="text-sm text-muted">No answers were recorded.</p></Card>}
-          {(turns ?? []).map((t) => {
+          {shown.length === 0 && <Card><p className="text-sm text-muted">No answers were recorded.</p></Card>}
+          {shown.map((t) => {
             const sc = (t.scores ?? {}) as TurnScores;
             const answer = t.user_transcript_corrected ?? t.user_transcript_raw ?? "";
             const firstMinute = debrief?.first_minute_seqs?.includes(t.seq);

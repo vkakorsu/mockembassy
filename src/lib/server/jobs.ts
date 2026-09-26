@@ -153,7 +153,12 @@ export async function runDebrief(sessionId: string) {
       return [{ kind: d.kind as string, text }];
     });
 
-    const answered = (turns ?? []).filter((t) => (t.user_transcript_corrected ?? t.user_transcript_raw ?? "").trim());
+    const answered = (turns ?? []).filter(
+      (t) =>
+        (t.user_transcript_corrected ?? t.user_transcript_raw ?? "").trim() &&
+        // Handing over the passport isn't an answer to grade.
+        !(t.seq === 1 && !String(t.officer_text).includes("?")),
+    );
     const input = answered.map((t) => ({
       seq: t.seq,
       officer: t.officer_text,

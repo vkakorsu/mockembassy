@@ -13,6 +13,7 @@ const Body = z.object({
         answer: z.string().max(4000),
         startedMs: z.number().int().min(0).nullable(),
         endedMs: z.number().int().min(0).nullable(),
+        replyLatencyMs: z.number().int().min(0).max(600_000).nullable().optional(),
       }),
     )
     .max(60),
@@ -37,6 +38,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/sessions/[id]/c
           user_transcript_raw: t.answer,
           started_ms: t.startedMs,
           ended_ms: t.endedMs,
+          reply_latency_ms: t.replyLatencyMs ?? null,
         })),
       );
     }
