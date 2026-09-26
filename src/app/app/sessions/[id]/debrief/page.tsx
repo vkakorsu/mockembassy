@@ -8,6 +8,7 @@ import { deliveryNotes, type DeliveryMetrics, type VoiceSummary } from "@/lib/do
 import { NOTE_PROBE_PREFIX, type SessionPlan } from "@/lib/domain/director";
 import { documentLabel } from "@/lib/domain/notes";
 import { requireUser } from "@/lib/server/auth";
+import { TESTING_LABELS } from "@/lib/labels";
 
 const OUTCOME = {
   approved: { title: "Approved", line: "The officer approved you in this simulation.", cls: "text-approved" },
@@ -199,7 +200,7 @@ export default async function DebriefPage(props: PageProps<"/app/sessions/[id]/d
               <Card key={t.seq}>
                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
                   <span>
-                    {sc.testing ? `Testing: ${sc.testing}` : `Question ${t.seq}`}
+                    {sc.testing ? `Testing: ${TESTING_LABELS[sc.testing] ?? sc.testing}` : `Question ${t.seq}`}
                     {firstMinute ? " · first minute" : ""}
                   </span>
                   {sc.delivery && (

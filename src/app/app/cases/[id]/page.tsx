@@ -12,6 +12,7 @@ import { fillTemplate, isFillable, probesFor } from "@/lib/domain/probes";
 import { requireUser } from "@/lib/server/auth";
 import { caseCredits, caseEntitlement, getCase, latestProfile, pastSessions } from "@/lib/server/repo";
 import { readiness, readinessTopics } from "@/lib/domain/readiness";
+import { formatDate, modeLabel } from "@/lib/labels";
 
 const OUTCOME: Record<string, { label: string; cls: string }> = {
   approved: { label: "Approved", cls: "bg-approved/10 text-approved" },
@@ -151,8 +152,10 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
                   <li key={t.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
                     <span className="min-w-0 flex-1">
                       &ldquo;{t.question}&rdquo;
-                      <span className={`ml-2 text-xs ${t.status === "weak" ? "text-refused" : "text-muted"}`}>
-                        {t.status === "weak" ? "weak last time" : "improving"}
+                      <span
+                        className={`ml-2 inline-block rounded-[3px] px-2 py-0.5 text-xs font-semibold ${t.status === "weak" ? "bg-refused/10 text-refused" : "bg-fg/5 text-muted"}`}
+                      >
+                        {t.status === "weak" ? "Weak last time" : "Improving"}
                       </span>
                     </span>
                     <form action={startDrill.bind(null, id, t.id)}>
@@ -196,8 +199,7 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
                       <span>
                         <span className="font-medium">{officer}</span>{" "}
                         <span className="text-muted">
-                          · {s.mode.replace("_", " ")}
-                          {s.is_free ? " · free" : ""} · {new Date(s.created_at).toLocaleDateString()}
+                          · {modeLabel(s.mode, s.is_free)} · {formatDate(s.created_at)}
                         </span>
                       </span>
                       <span className="flex items-center gap-3">

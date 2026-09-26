@@ -3,6 +3,7 @@ import { grantPass, refundPass, setRole, viewCaseFacts } from "@/app/admin/actio
 import { PageHead, Section, Table } from "@/components/admin/stat";
 import { inputCls } from "@/components/app/ui";
 import { ghs, requireAdmin } from "@/lib/server/admin";
+import { capitalize, formatDate, formatDateTime, outcomeLabel, packLabel } from "@/lib/labels";
 
 export const metadata = { title: "User" };
 
@@ -68,8 +69,8 @@ export default async function AdminUser(props: PageProps<"/admin/users/[id]">) {
         <p role="status" className="mb-6 rounded-[4px] border border-stamp bg-stamp/10 px-4 py-3 text-sm">{NOTICES[notice]}</p>
       )}
       <PageHead title={profile.email ?? authUser.user?.email ?? phone ?? "User"}>
-        Joined {new Date(profile.created_at).toLocaleDateString()} · role <strong>{profile.role}</strong> · last sign-in{" "}
-        {authUser.user?.last_sign_in_at ? new Date(authUser.user.last_sign_in_at).toLocaleString() : "never"}
+        Joined {formatDate(profile.created_at)} · Role: <strong>{capitalize(profile.role)}</strong> · Last sign-in:{" "}
+        {authUser.user?.last_sign_in_at ? formatDateTime(authUser.user.last_sign_in_at) : "never"}
       </PageHead>
 
       <Section title="Role">
@@ -100,25 +101,25 @@ export default async function AdminUser(props: PageProps<"/admin/users/[id]">) {
         return (
           <Section key={c.id} title={`${c.applicant_name} · ${c.visa_type === "F1" ? "F-1" : "B1/B2"}`}>
             <p className="text-sm text-muted">
-              Interview {c.interview_at ? new Date(c.interview_at).toDateString() : "not set"} · {sessions.length} sessions (
-              {sessions.filter((s) => s.is_free).length} free) · identity {c.identity_locked_at ? "locked" : "unlocked"}
-              {outcome ? ` · reported: ${outcome}` : ""}
+              Interview: {c.interview_at ? formatDate(c.interview_at) : "not set"} · {sessions.length} sessions (
+              {sessions.filter((s) => s.is_free).length} free) · Identity {c.identity_locked_at ? "locked" : "not locked yet"}
+              {outcome ? ` · Reported result: ${outcomeLabel(outcome)}` : ""}
             </p>
 
             <div className="mt-4">
               <Table
                 head={["Pack", "Credits", "Paid", "Reference", "Bought", "Status", ""]}
                 rows={passes.map((p) => [
-                  p.plan,
+                  packLabel(p.plan),
                   `${p.interviews} interviews · ${p.drills} drills`,
-                  p.amount_pesewas ? ghs(p.amount_pesewas) : "comped",
+                  p.amount_pesewas ? ghs(p.amount_pesewas) : "Comped",
                   <span key="r" className="font-mono text-xs">{p.paystack_reference}</span>,
-                  new Date(p.purchased_at).toLocaleDateString(),
+                  formatDate(p.purchased_at),
                   p.refunded_at
-                    ? `refunded ${new Date(p.refunded_at).toLocaleDateString()}`
+                    ? `Refunded ${formatDate(p.refunded_at)}`
                     : new Date(p.expires_at) < new Date()
-                      ? "expired"
-                      : `use by ${new Date(p.expires_at).toLocaleDateString()}`,
+                      ? "Expired"
+                      : `Use by ${formatDate(p.expires_at)}`,
                   p.refunded_at ? "" : <ReasonForm key="f" action={refundPass.bind(null, id, p.id)} label="Refund" />,
                 ])}
                 empty="No packs."

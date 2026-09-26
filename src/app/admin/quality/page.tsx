@@ -2,6 +2,7 @@ import { PageHead, Section, Stat, Table } from "@/components/admin/stat";
 import type { SessionPlan } from "@/lib/domain/director";
 import { getProbe } from "@/lib/domain/probes";
 import { daysAgo, requireAdmin } from "@/lib/server/admin";
+import { DEBRIEF_STATUS_LABELS, outcomeLabel, topicLabel } from "@/lib/labels";
 
 export const metadata = { title: "Session quality" };
 
@@ -11,7 +12,13 @@ export default async function AdminQuality() {
   const { db } = await requireAdmin();
   const since = daysAgo(30);
   const [{ data: sessionRows }, { data: probeRows }, { data: latencyRows }] = await Promise.all([
-    db.from("sessions").select("case_id, client_fp, plan, outcome, realism_rating, debrief_status, started_at, ended_at, mode").gte("created_at", since).limit(20000),
+    // Sessions that never started (a mode clicked, then left) would skew every figure.
+    db
+      .from("sessions")
+      .select("case_id, client_fp, plan, outcome, realism_rating, debrief_status, started_at, ended_at, mode")
+      .gte("created_at", since)
+      .not("started_at", "is", null)
+      .limit(20000),
     db.from("probe_results").select("probe_id, quality").gte("created_at", since).limit(50000),
     db
       .from("turns")
@@ -53,11 +60,12 @@ export default async function AdminQuality() {
   }
   const sharing = [...byCase].filter(([, v]) => v.fps.size >= 3).sort((a, b) => b[1].fps.size - a[1].fps.size);
 
-  const label = (id: string) => {
+  // A sample of how the question is asked, with case details left as "…".
+  const sample = (id: string) => {
     try {
-      return getProbe(id).entry[0];
+      return getProbe(id).entry[0].replace(/\{\w+\}/g, "…");
     } catch {
-      return id;
+      return "Built from the applicant's own documents";
     }
   };
 
@@ -73,7 +81,7 @@ export default async function AdminQuality() {
       </div>
 
       <Section title="Simulated outcomes" note="Share of finished sessions. If nearly everyone is approved or refused, the Referee's thresholds need tuning.">
-        <Table head={["Outcome", "Sessions", "Share"]} rows={outcomes.map(([o, n]) => [o, n, pct(n, ended.length)])} />
+        <Table head={["Outcome", "Sessions", "Share"]} rows={outcomes.map(([o, n]) => [outcomeLabel(o), n, pct(n, ended.length)])} />
       </Section>
 
       <Section title="Rating distribution">
@@ -86,8 +94,8 @@ export default async function AdminQuality() {
           rows={[...probes]
             .sort((a, b) => (b[1].weak + b[1].contradiction) / b[1].n - (a[1].weak + a[1].contradiction) / a[1].n)
             .map(([id, v]) => [
-              <span key="i" className="font-mono text-xs">{id}</span>,
-              label(id),
+              topicLabel(id),
+              <span key="q" className="text-muted">{sample(id)}</span>,
               v.n,
               pct(v.weak, v.n),
               pct(v.contradiction, v.n),
@@ -112,7 +120,7 @@ export default async function AdminQuality() {
       </Section>
 
       <Section title="Debrief grading">
-        <Table head={["Status", "Sessions"]} rows={debriefs.map(([d, n]) => [d, n])} />
+        <Table head={["Status", "Sessions"]} rows={debriefs.map(([d, n]) => [DEBRIEF_STATUS_LABELS[d] ?? d, n])} />
       </Section>
     </>
   );

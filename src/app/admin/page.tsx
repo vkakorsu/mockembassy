@@ -2,6 +2,7 @@ import Link from "next/link";
 import { DailyBars } from "@/components/admin/daily-bars";
 import { PageHead, Section, Stat, Table } from "@/components/admin/stat";
 import { daysAgo, ghs, requireAdmin } from "@/lib/server/admin";
+import { capitalize, formatDateTime, packLabel } from "@/lib/labels";
 
 const nowMs = () => Date.now();
 const count = (r: { count: number | null }) => r.count ?? 0;
@@ -15,7 +16,7 @@ export default async function AdminOverview() {
     db.from("profiles").select("id", { count: "exact", head: true }),
     db.from("profiles").select("id", { count: "exact", head: true }).gte("created_at", daysAgo(7, now)),
     db.from("cases").select("id", { count: "exact", head: true }),
-    db.from("sessions").select("created_at, is_free, case_id").gte("created_at", `${since14}T00:00:00Z`).limit(20000),
+    db.from("sessions").select("created_at, is_free, case_id").gte("created_at", `${since14}T00:00:00Z`).not("started_at", "is", null).limit(20000),
     db.from("passes").select("plan, amount_pesewas, purchased_at, refunded_at, case_id").limit(20000),
     db.from("outcomes").select("result").limit(20000),
     db.from("sessions").select("id", { count: "exact", head: true }).eq("debrief_status", "failed").gte("created_at", daysAgo(7, now)),
@@ -85,8 +86,8 @@ export default async function AdminOverview() {
           head={["Email / phone", "Role", "Joined", ""]}
           rows={(recentRes.data ?? []).map((u) => [
             u.email ?? (u.phone_e164 ? `+${String(u.phone_e164).replace(/^\+/, "")}` : "—"),
-            u.role,
-            new Date(u.created_at).toLocaleString(),
+            capitalize(u.role),
+            formatDateTime(u.created_at),
             <Link key="l" href={`/admin/users/${u.id}`} className="underline underline-offset-4">
               Open
             </Link>,
@@ -98,7 +99,7 @@ export default async function AdminOverview() {
       <Section title="Sales by plan">
         <Table
           head={["Plan", "Sold", "Total"]}
-          rows={[...byPlan].sort((a, b) => b[1].gross - a[1].gross).map(([plan, v]) => [plan, v.n, ghs(v.gross)])}
+          rows={[...byPlan].sort((a, b) => b[1].gross - a[1].gross).map(([plan, v]) => [packLabel(plan), v.n, ghs(v.gross)])}
           empty="No paid packs yet."
         />
       </Section>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PageHead, Section, Stat, Table } from "@/components/admin/stat";
 import { daysAgo, ghs, requireAdmin } from "@/lib/server/admin";
+import { formatDateTime, packLabel } from "@/lib/labels";
 
 export const metadata = { title: "Payments" };
 
@@ -35,7 +36,7 @@ export default async function AdminPayments() {
           rows={passes.map((p) => {
             const c = p.cases as unknown as { user_id: string; applicant_name: string } | null;
             return [
-              new Date(p.purchased_at).toLocaleString(),
+              formatDateTime(p.purchased_at),
               c ? (
                 <Link key="u" href={`/admin/users/${c.user_id}`} className="underline underline-offset-4">
                   {c.applicant_name}
@@ -43,11 +44,11 @@ export default async function AdminPayments() {
               ) : (
                 "—"
               ),
-              p.plan,
-              p.amount_pesewas ? ghs(p.amount_pesewas) : "comped",
+              packLabel(p.plan),
+              p.amount_pesewas ? ghs(p.amount_pesewas) : "Comped",
               <span key="r" className="font-mono text-xs">{p.paystack_reference}</span>,
               `${p.interviews}/${p.drills}`,
-              p.refunded_at ? "refunded" : "active",
+              p.refunded_at ? "Refunded" : "Active",
             ];
           })}
           empty="No packs yet."

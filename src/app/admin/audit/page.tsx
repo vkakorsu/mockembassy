@@ -1,6 +1,14 @@
 import Link from "next/link";
 import { PageHead, Table } from "@/components/admin/stat";
 import { requireAdmin } from "@/lib/server/admin";
+import { formatDateTime } from "@/lib/labels";
+
+const AUDIT_ACTIONS: Record<string, string> = {
+  view_case_facts: "Viewed case facts",
+  refund_pass: "Refunded a pack",
+  grant_pass: "Granted a pack",
+  set_role: "Changed role",
+};
 
 export const metadata = { title: "Audit log" };
 
@@ -20,11 +28,11 @@ export default async function AdminAudit() {
         <Table
           head={["When", "Admin", "Action", "Target", "Reason"]}
           rows={(data ?? []).map((r) => [
-            new Date(r.created_at).toLocaleString(),
+            formatDateTime(r.created_at),
             <Link key="a" href={`/admin/users/${r.admin_id}`} className="font-mono text-xs underline underline-offset-4">
               {String(r.admin_id).slice(0, 8)}
             </Link>,
-            r.action,
+            AUDIT_ACTIONS[r.action] ?? r.action,
             <span key="t" className="font-mono text-xs">{r.target_id ? String(r.target_id).slice(0, 8) : "—"}</span>,
             r.reason,
           ])}

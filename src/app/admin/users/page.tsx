@@ -2,6 +2,7 @@ import Link from "next/link";
 import { PageHead, Table } from "@/components/admin/stat";
 import { inputCls } from "@/components/app/ui";
 import { requireAdmin } from "@/lib/server/admin";
+import { capitalize, formatDate } from "@/lib/labels";
 
 export const metadata = { title: "Users" };
 
@@ -36,9 +37,9 @@ export default async function AdminUsers(props: PageProps<"/admin/users">) {
           rows={(users ?? []).map((u) => [
             u.email ?? "—",
             u.phone_e164 ? `+${u.phone_e164.replace(/^\+/, "")}` : "—",
-            u.role,
+            capitalize(u.role),
             caseCount.get(u.id) ?? 0,
-            new Date(u.created_at).toLocaleDateString(),
+            formatDate(u.created_at),
             <Link key="l" href={`/admin/users/${u.id}`} className="underline underline-offset-4">
               Open
             </Link>,

@@ -7,6 +7,8 @@ import { BackLink, Button, Card, PageTitle } from "@/components/app/ui";
 import { env, features } from "@/lib/env";
 import { requireUser } from "@/lib/server/auth";
 import { getCase } from "@/lib/server/repo";
+import { capitalize, formatDate } from "@/lib/labels";
+import { documentLabel } from "@/lib/domain/notes";
 
 const STATUS: Record<string, string> = { pending: "Reading…", done: "Read", failed: "Couldn't read" };
 
@@ -47,10 +49,10 @@ export default async function Documents(props: PageProps<"/app/cases/[id]/docume
               {(docs ?? []).map((d) => (
                 <li key={d.id} className="flex items-center justify-between gap-3 py-3 text-sm">
                   <span>
-                    <span className="font-medium">{d.kind.replaceAll("_", " ")}</span>
+                    <span className="font-medium">{capitalize(documentLabel(d.kind))}</span>
                     <span className="block text-xs text-muted">
                       {STATUS[d.extraction_status]}
-                      {d.extraction_error ? `: ${d.extraction_error}` : ""} · deleted {new Date(d.delete_after).toLocaleDateString()}
+                      {d.extraction_error ? `: ${d.extraction_error}` : ""} · deleted {formatDate(d.delete_after)}
                     </span>
                     {(() => {
                       const x = d.extraction as { legibility?: string; unreadable?: string } | null;
