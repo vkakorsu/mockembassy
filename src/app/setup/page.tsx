@@ -40,8 +40,8 @@ export default function Setup() {
         ))}
       </ul>
       <p className="mt-6 text-sm text-muted">
-        Then run the migrations in <code className="font-mono">supabase/migrations</code> (supabase db push), enable Phone
-        auth (with an SMS provider) and Google auth in Supabase, and point the Paystack webhook at{" "}
+        Then run the migrations in <code className="font-mono">supabase/migrations</code> (supabase db push), keep
+        Email auth on (email and password; phone sign-in isn&rsquo;t used), and point the Paystack webhook at{" "}
         <code className="font-mono">/api/paystack/webhook</code>.
       </p>
     </main>

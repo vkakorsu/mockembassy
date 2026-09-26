@@ -61,14 +61,13 @@ export default async function AdminUser(props: PageProps<"/admin/users/[id]">) {
     }
   }
 
-  const phone = profile.phone_e164 ? `+${String(profile.phone_e164).replace(/^\+/, "")}` : null;
 
   return (
     <>
       {typeof notice === "string" && NOTICES[notice] && (
         <p role="status" className="mb-6 rounded-[4px] border border-stamp bg-stamp/10 px-4 py-3 text-sm">{NOTICES[notice]}</p>
       )}
-      <PageHead title={profile.email ?? authUser.user?.email ?? phone ?? "User"}>
+      <PageHead title={profile.email ?? authUser.user?.email ?? "User"}>
         Joined {formatDate(profile.created_at)} · Role: <strong>{capitalize(profile.role)}</strong> · Last sign-in:{" "}
         {authUser.user?.last_sign_in_at ? formatDateTime(authUser.user.last_sign_in_at) : "never"}
       </PageHead>

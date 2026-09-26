@@ -17,7 +17,7 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
             <Logo />
           </Link>
           <div className="flex items-center gap-4 text-sm text-muted">
-            <span className="hidden sm:inline">{user.phone ? `+${user.phone.replace(/^\+/, "")}` : user.email}</span>
+            <span className="hidden sm:inline">{user.email}</span>
             <div className="flex items-center gap-2">
               <Link href="/app" className="rounded-[3px] border border-ink px-3 py-1.5 font-semibold text-fg hover:bg-ink hover:text-on-ink">
                 Home

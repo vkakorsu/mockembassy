@@ -26,7 +26,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
             <Logo />
             <span className="rounded-[3px] border border-stamp px-2 py-0.5 text-[11px] uppercase tracking-[0.18em] text-stamp">Admin</span>
           </Link>
-          <span className="hidden text-sm text-muted sm:inline">{admin.phone ? `+${admin.phone.replace(/^\+/, "")}` : admin.email}</span>
+          <span className="hidden text-sm text-muted sm:inline">{admin.email}</span>
         </div>
         <nav aria-label="Admin" className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4 pb-3 text-sm sm:px-8">
           {nav.map((n) => (

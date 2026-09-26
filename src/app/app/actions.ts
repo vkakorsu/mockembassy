@@ -362,8 +362,8 @@ export async function buyPlan(caseId: string, plan: PackId) {
 
   const reference = `okw_${randomUUID().replace(/-/g, "")}`;
   const tx = await initializeTransaction({
-    // Paystack requires an email; phone-only users get a stable placeholder on our domain.
-    email: user.email ?? `${user.id}@users.okwan.ai`,
+    // Accounts are email and password, so there's always an email for Paystack's receipt.
+    email: user.email!,
     amountPesewas: priceFor(plan),
     reference,
     callbackUrl: `${env.siteUrl}/app/billing/return`,

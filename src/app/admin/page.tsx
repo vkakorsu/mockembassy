@@ -20,7 +20,7 @@ export default async function AdminOverview() {
     db.from("passes").select("plan, amount_pesewas, purchased_at, refunded_at, case_id").limit(20000),
     db.from("outcomes").select("result").limit(20000),
     db.from("sessions").select("id", { count: "exact", head: true }).eq("debrief_status", "failed").gte("created_at", daysAgo(7, now)),
-    db.from("profiles").select("id, email, phone_e164, role, created_at").order("created_at", { ascending: false }).limit(5),
+    db.from("profiles").select("id, email, role, created_at").order("created_at", { ascending: false }).limit(5),
   ]);
 
   const sessions = sessionsRes.data ?? [];
@@ -83,9 +83,9 @@ export default async function AdminOverview() {
 
       <Section title="Newest accounts">
         <Table
-          head={["Email / phone", "Role", "Joined", ""]}
+          head={["Email", "Role", "Joined", ""]}
           rows={(recentRes.data ?? []).map((u) => [
-            u.email ?? (u.phone_e164 ? `+${String(u.phone_e164).replace(/^\+/, "")}` : "—"),
+            u.email ?? "—",
             capitalize(u.role),
             formatDateTime(u.created_at),
             <Link key="l" href={`/admin/users/${u.id}`} className="underline underline-offset-4">

@@ -25,6 +25,35 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+function EyeIcon({ open }: { open: boolean }) {
+  return (
+    <svg aria-hidden viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" />
+      <circle cx="12" cy="12" r="3" />
+      {!open && <path d="M3 3l18 18" />}
+    </svg>
+  );
+}
+
+/** A password field with a show/hide button. */
+function PasswordInput(props: { name: string; autoComplete: string; minLength?: number }) {
+  const [shown, setShown] = useState(false);
+  return (
+    <div className="relative">
+      <input {...props} type={shown ? "text" : "password"} required className={`${authInput} pr-12`} />
+      <button
+        type="button"
+        onClick={() => setShown((v) => !v)}
+        aria-label={shown ? "Hide password" : "Show password"}
+        aria-pressed={shown}
+        className="absolute inset-y-0 right-0 grid w-12 place-items-center text-muted hover:text-fg"
+      >
+        <EyeIcon open={!shown} />
+      </button>
+    </div>
+  );
+}
+
 function ErrorLine({ text }: { text: string | null }) {
   return text ? <p role="alert" className="text-sm text-refused">{text}</p> : null;
 }
@@ -41,6 +70,7 @@ export function SignUpForm({ url, publishableKey }: Cfg) {
     const email = String(f.get("email")).trim();
     const password = String(f.get("password"));
     if (password.length < 8) return setError("Use at least 8 characters.");
+    if (password !== String(f.get("confirm"))) return setError("The passwords don't match.");
     setBusy(true);
     setError(null);
     const supabase = createClient(url, publishableKey);
@@ -75,7 +105,10 @@ export function SignUpForm({ url, publishableKey }: Cfg) {
         <input name="email" type="email" required autoComplete="email" className={authInput} />
       </Field>
       <Field label="Password (8+ characters)">
-        <input name="password" type="password" required minLength={8} autoComplete="new-password" className={authInput} />
+        <PasswordInput name="password" minLength={8} autoComplete="new-password" />
+      </Field>
+      <Field label="Confirm password">
+        <PasswordInput name="confirm" minLength={8} autoComplete="new-password" />
       </Field>
       <button disabled={busy} className={authButton}>{busy ? "Creating…" : "Create account"}</button>
       <ErrorLine text={error} />
@@ -87,100 +120,42 @@ export function SignUpForm({ url, publishableKey }: Cfg) {
   );
 }
 
-function toE164(input: string) {
-  const d = input.replace(/[^\d+]/g, "");
-  if (d.startsWith("+")) return d;
-  if (d.startsWith("233")) return `+${d}`;
-  if (d.startsWith("0")) return `+233${d.slice(1)}`;
-  return `+233${d}`;
-}
-
 export function SignInForm({ url, publishableKey, next = "/app" }: Cfg) {
   const router = useRouter();
-  const [mode, setMode] = useState<"email" | "phone">("email");
-  const [stage, setStage] = useState<"phone" | "code">("phone");
-  const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const supabase = createClient(url, publishableKey);
 
-  const done = async () => {
-    // One active login per account: signing in here signs out other devices.
-    await supabase.auth.signOut({ scope: "others" });
-    router.replace(next);
-    router.refresh();
-  };
-
-  async function emailSignIn(e: React.FormEvent<HTMLFormElement>) {
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     setBusy(true);
     setError(null);
+    const supabase = createClient(url, publishableKey);
     const { error } = await supabase.auth.signInWithPassword({ email: String(f.get("email")).trim(), password: String(f.get("password")) });
-    setBusy(false);
-    if (error) setError(friendly(error.message));
-    else await done();
-  }
-
-  async function sendCode(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    const { error } = await supabase.auth.signInWithOtp({ phone: toE164(phone) });
-    setBusy(false);
-    if (error) setError(friendly(error.message));
-    else setStage("code");
-  }
-
-  async function verify(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const token = String(new FormData(e.currentTarget).get("code"));
-    setBusy(true);
-    setError(null);
-    const { error } = await supabase.auth.verifyOtp({ phone: toE164(phone), token, type: "sms" });
-    setBusy(false);
-    if (error) setError(friendly(error.message));
-    else await done();
+    if (error) {
+      setBusy(false);
+      return setError(friendly(error.message));
+    }
+    // One active login per account: signing in here signs out other devices.
+    await supabase.auth.signOut({ scope: "others" });
+    router.replace(next);
+    router.refresh();
   }
 
   return (
-    <div className="mt-6 grid gap-4">
-      {mode === "email" ? (
-        <form onSubmit={emailSignIn} className="grid gap-4">
-          <Field label="Email">
-            <input name="email" type="email" required autoComplete="email" className={authInput} />
-          </Field>
-          <Field label="Password">
-            <input name="password" type="password" required autoComplete="current-password" className={authInput} />
-          </Field>
-          <button disabled={busy} className={authButton}>{busy ? "Signing in…" : "Sign in"}</button>
-          <div className="flex justify-between text-sm">
-            <Link href="/forgot" className="underline underline-offset-4">Forgot password?</Link>
-            <button type="button" onClick={() => setMode("phone")} className="underline underline-offset-4">
-              Use phone instead
-            </button>
-          </div>
-        </form>
-      ) : stage === "phone" ? (
-        <form onSubmit={sendCode} className="grid gap-4">
-          <Field label="Phone number">
-            <input type="tel" inputMode="tel" autoComplete="tel" required placeholder="024 000 0000" value={phone} onChange={(e) => setPhone(e.target.value)} className={authInput} />
-          </Field>
-          <button disabled={busy} className={authButton}>{busy ? "Sending…" : "Text me a code"}</button>
-          <button type="button" onClick={() => setMode("email")} className="text-sm underline underline-offset-4">
-            Use email instead
-          </button>
-        </form>
-      ) : (
-        <form onSubmit={verify} className="grid gap-4">
-          <Field label={`6-digit code sent to ${toE164(phone)}`}>
-            <input name="code" inputMode="numeric" autoComplete="one-time-code" required maxLength={6} className={`${authInput} tracking-[0.4em]`} />
-          </Field>
-          <button disabled={busy} className={authButton}>{busy ? "Checking…" : "Sign in"}</button>
-        </form>
-      )}
+    <form onSubmit={onSubmit} className="mt-6 grid gap-4">
+      <Field label="Email">
+        <input name="email" type="email" required autoComplete="email" className={authInput} />
+      </Field>
+      <Field label="Password">
+        <PasswordInput name="password" autoComplete="current-password" />
+      </Field>
+      <button disabled={busy} className={authButton}>{busy ? "Signing in…" : "Sign in"}</button>
+      <Link href="/forgot" className="text-sm underline underline-offset-4">
+        Forgot password?
+      </Link>
       <ErrorLine text={error} />
-    </div>
+    </form>
   );
 }
 
@@ -222,8 +197,10 @@ export function UpdatePasswordForm({ url, publishableKey }: Cfg) {
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const password = String(new FormData(e.currentTarget).get("password"));
+    const f = new FormData(e.currentTarget);
+    const password = String(f.get("password"));
     if (password.length < 8) return setError("Use at least 8 characters.");
+    if (password !== String(f.get("confirm"))) return setError("The passwords don't match.");
     setBusy(true);
     setError(null);
     const { error } = await createClient(url, publishableKey).auth.updateUser({ password });
@@ -238,7 +215,10 @@ export function UpdatePasswordForm({ url, publishableKey }: Cfg) {
   return (
     <form onSubmit={onSubmit} className="mt-6 grid gap-4">
       <Field label="New password (8+ characters)">
-        <input name="password" type="password" required minLength={8} autoComplete="new-password" className={authInput} />
+        <PasswordInput name="password" minLength={8} autoComplete="new-password" />
+      </Field>
+      <Field label="Confirm new password">
+        <PasswordInput name="confirm" minLength={8} autoComplete="new-password" />
       </Field>
       <button disabled={busy} className={authButton}>{busy ? "Saving…" : "Save password"}</button>
       <ErrorLine text={error} />
