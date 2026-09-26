@@ -7,7 +7,8 @@ import { probeStatus } from "@/lib/domain/director";
 import { fillTemplate, isFillable, probesFor } from "@/lib/domain/probes";
 import { passWindow } from "@/lib/domain/pass";
 import { requireUser } from "@/lib/server/auth";
-import { caseEntitlement, getCase, latestProfile, pastSessions, readinessFrom } from "@/lib/server/repo";
+import { caseEntitlement, getCase, latestProfile, pastSessions } from "@/lib/server/repo";
+import { readiness, readinessTopics } from "@/lib/domain/readiness";
 
 const OUTCOME: Record<string, { label: string; cls: string }> = {
   approved: { label: "Approved", cls: "bg-approved/10 text-approved" },
@@ -41,8 +42,9 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
   ]);
 
   const flags = current ? scanCase(current.profile) : [];
-  const relevant = current ? probesFor(caseRow.visa_type).filter((p) => p.relevance(current.profile) > 0).map((p) => p.id) : [];
-  const readiness = readinessFrom(history, relevant);
+  const topics = current ? readinessTopics(current.profile) : [];
+  const relevant = topics.map((t) => t.id);
+  const ready = readiness(history, topics);
   // Topics to drill: answered weakly last time, then ones still improving.
   const toFix = current
     ? probesFor(caseRow.visa_type)
@@ -88,14 +90,16 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
               </div>
               <div className="text-right">
                 <p className="text-xs uppercase tracking-wider text-muted">Readiness</p>
-                <p className="font-display text-4xl tabular">{Math.round(readiness * 100)}%</p>
+                <p className="font-display text-4xl tabular">{Math.round(ready.score * 100)}%</p>
               </div>
             </div>
             <div className="mt-3 h-2 overflow-hidden rounded-[3px] bg-fg/10">
-              <div className="h-full rounded-[3px] bg-stamp" style={{ width: `${Math.round(readiness * 100)}%` }} />
+              <div className="h-full rounded-[3px] bg-stamp" style={{ width: `${Math.round(ready.score * 100)}%` }} />
             </div>
             <p className="mt-2 text-xs text-muted">
-              A topic only counts once two different officers have heard you answer it well.
+              {ready.total
+                ? `${ready.answeredWell} of ${ready.total} topics answered well${ready.answeredWell ? `, ${ready.confirmed} confirmed by a second officer` : ""}. A topic counts half after one good answer and fully once a different officer agrees; a weak answer resets it. Key topics count double.`
+                : "Confirm your facts to see which topics your officer will test."}
             </p>
             {!current ? (
               <p className="mt-6 text-sm">

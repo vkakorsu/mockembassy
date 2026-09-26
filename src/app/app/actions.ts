@@ -10,7 +10,7 @@ import type { CaseNote, NoteCategory } from "@/lib/domain/notes";
 import { FREE_MOCK_SECONDS, type PlanId } from "@/lib/domain/entitlement";
 import { moveInterviewDate } from "@/lib/domain/pass";
 import { MAX_CASES_PER_ACCOUNT, sameApplicant } from "@/lib/domain/identity";
-import { probesFor } from "@/lib/domain/probes";
+import { readinessTopics } from "@/lib/domain/readiness";
 import { env, features } from "@/lib/env";
 import { requireUser } from "@/lib/server/auth";
 import { runDebrief, runExtraction } from "@/lib/server/jobs";
@@ -245,7 +245,7 @@ export async function startSession(caseId: string, requestedMode: SessionMode) {
   if (ent.kind === "none") redirect(`/app/cases/${caseId}/pass?reason=${encodeURIComponent(ent.reason)}`);
 
   const history = await pastSessions(supabase, caseId);
-  const relevant = probesFor(caseRow.visa_type).filter((p) => p.relevance(current.profile) > 0).map((p) => p.id);
+  const topics = readinessTopics(current.profile);
   const mode: SessionMode = ent.kind === "free" ? "real" : requestedMode;
   const seed = randomUUID();
   const [{ data: noteRows }, { data: docRows }] = await Promise.all([
@@ -261,7 +261,7 @@ export async function startSession(caseId: string, requestedMode: SessionMode) {
   const plan = planSession({
     profile: current.profile,
     pastSessions: history,
-    readiness: readinessFrom(history, relevant),
+    readiness: readinessFrom(history, topics),
     mode,
     seed,
     notes,
@@ -315,13 +315,13 @@ export async function startDrill(caseId: string, probeId: string) {
     supabase.from("case_notes").select("id, source_kind, category, text").eq("case_id", caseId).eq("status", "confirmed"),
     supabase.from("documents").select("kind").eq("case_id", caseId),
   ]);
-  const relevant = probesFor(caseRow.visa_type).filter((p) => p.relevance(current.profile) > 0).map((p) => p.id);
+  const topics = readinessTopics(current.profile);
   const seed = randomUUID();
   const plan = planDrill(
     {
       profile: current.profile,
       pastSessions: history,
-      readiness: readinessFrom(history, relevant),
+      readiness: readinessFrom(history, topics),
       mode: "drill",
       seed,
       notes: (noteRows ?? []).map((n) => ({ id: n.id, sourceKind: n.source_kind, category: n.category as NoteCategory, text: n.text })),

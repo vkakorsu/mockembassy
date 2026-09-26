@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { CaseProfile } from "@/lib/domain/case";
+import { readiness, type ReadinessTopic } from "@/lib/domain/readiness";
 import type { PastSession, ProbeResult, SessionPlan } from "@/lib/domain/director";
 import { drillEntitlement, entitlement, type Entitlement, type PassRow, type PlanId } from "@/lib/domain/entitlement";
 
@@ -92,22 +93,9 @@ export async function caseEntitlement(db: SupabaseClient, caseRow: CaseRow, now 
   });
 }
 
-/** Readiness 0..1: share of relevant probes that are solid across distinct officers. */
-export function readinessFrom(sessions: PastSession[], relevantProbeIds: string[]): number {
-  if (!relevantProbeIds.length) return 0;
-  const good = new Map<string, Set<string>>();
-  for (const s of [...sessions].reverse()) {
-    for (const r of s.probeResults) {
-      if (r.quality === "weak" || r.quality === "contradiction") good.set(r.probeId, new Set());
-      else {
-        const set = good.get(r.probeId) ?? new Set<string>();
-        set.add(r.officerName);
-        good.set(r.probeId, set);
-      }
-    }
-  }
-  const solid = relevantProbeIds.filter((id) => (good.get(id)?.size ?? 0) >= 2).length;
-  return solid / relevantProbeIds.length;
+/** Readiness 0..1 (src/lib/domain/readiness.ts). */
+export function readinessFrom(sessions: PastSession[], topics: ReadinessTopic[]): number {
+  return readiness(sessions, topics).score;
 }
 
 export async function caseDrillEntitlement(db: SupabaseClient, caseRow: CaseRow, now = new Date()): Promise<Entitlement> {
