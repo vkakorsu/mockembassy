@@ -25,7 +25,7 @@ export default async function SignUp() {
         </Link>
       }
     >
-      <SignUpForm url={env.supabaseUrl!} publishableKey={env.supabasePublishableKey!} />
+      <SignUpForm url={env.supabaseUrl!} publishableKey={env.supabasePublishableKey!} captchaSiteKey={env.turnstileSiteKey} />
     </AuthShell>
   );
 }

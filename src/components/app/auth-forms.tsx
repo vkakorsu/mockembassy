@@ -1,17 +1,49 @@
 "use client";
 
 import Link from "next/link";
+import Script from "next/script";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { authButton, authInput } from "./auth-shell";
 
-type Cfg = { url: string; publishableKey: string; next?: string };
+import { isDisposableEmail } from "@/lib/domain/abuse";
+
+type Cfg = { url: string; publishableKey: string; next?: string; captchaSiteKey?: string };
+
+declare global {
+  interface Window {
+    turnstile?: { reset: (el?: string | HTMLElement) => void };
+  }
+}
+
+/**
+ * Cloudflare Turnstile, when a site key is set: stops scripted sign-ups
+ * (Supabase checks the token server-side once CAPTCHA protection is on).
+ * The widget adds a hidden "cf-turnstile-response" field to the form.
+ */
+function Captcha({ siteKey }: { siteKey?: string }) {
+  if (!siteKey) return null;
+  return (
+    <>
+      <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer />
+      <div className="cf-turnstile" data-sitekey={siteKey} data-theme="light" />
+    </>
+  );
+}
+
+/** The token from the widget, if any; each one works once, so the widget resets after use. */
+function captchaToken(f: FormData): string | undefined {
+  const token = f.get("cf-turnstile-response");
+  return typeof token === "string" && token ? token : undefined;
+}
+const resetCaptcha = () => window.turnstile?.reset();
 
 const friendly = (m: string) => {
   if (/fetch|network/i.test(m)) return "Couldn't reach Okwan. Check your connection and try again.";
   if (/invalid login credentials/i.test(m)) return "That email and password don't match.";
   if (/email not confirmed/i.test(m)) return "Please confirm your email first. Check your inbox for our link.";
+  if (/captcha/i.test(m)) return "Please complete the check above the button, then try again.";
   if (/already registered/i.test(m)) return "An account with that email already exists. Sign in instead.";
   return m;
 };
@@ -58,7 +90,7 @@ function ErrorLine({ text }: { text: string | null }) {
   return text ? <p role="alert" className="text-sm text-refused">{text}</p> : null;
 }
 
-export function SignUpForm({ url, publishableKey }: Cfg) {
+export function SignUpForm({ url, publishableKey, captchaSiteKey }: Cfg) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,15 +103,18 @@ export function SignUpForm({ url, publishableKey }: Cfg) {
     const password = String(f.get("password"));
     if (password.length < 8) return setError("Use at least 8 characters.");
     if (password !== String(f.get("confirm"))) return setError("The passwords don't match.");
+    if (isDisposableEmail(email)) return setError("Please use your real email. Throwaway inboxes can't get the free sessions.");
+    if (captchaSiteKey && !captchaToken(f)) return setError("Please complete the check above the button.");
     setBusy(true);
     setError(null);
     const supabase = createClient(url, publishableKey);
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/app` },
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/app`, captchaToken: captchaToken(f) },
     });
     setBusy(false);
+    resetCaptcha();
     if (error) return setError(friendly(error.message));
     if (data.session) {
       router.replace("/app");
@@ -110,6 +145,7 @@ export function SignUpForm({ url, publishableKey }: Cfg) {
       <Field label="Confirm password">
         <PasswordInput name="confirm" minLength={8} autoComplete="new-password" />
       </Field>
+      <Captcha siteKey={captchaSiteKey} />
       <button disabled={busy} className={authButton}>{busy ? "Creating…" : "Create account"}</button>
       <ErrorLine text={error} />
       <p className="text-sm text-muted">
@@ -120,7 +156,7 @@ export function SignUpForm({ url, publishableKey }: Cfg) {
   );
 }
 
-export function SignInForm({ url, publishableKey, next = "/app" }: Cfg) {
+export function SignInForm({ url, publishableKey, next = "/app", captchaSiteKey }: Cfg) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -131,9 +167,14 @@ export function SignInForm({ url, publishableKey, next = "/app" }: Cfg) {
     setBusy(true);
     setError(null);
     const supabase = createClient(url, publishableKey);
-    const { error } = await supabase.auth.signInWithPassword({ email: String(f.get("email")).trim(), password: String(f.get("password")) });
+    const { error } = await supabase.auth.signInWithPassword({
+      email: String(f.get("email")).trim(),
+      password: String(f.get("password")),
+      options: { captchaToken: captchaToken(f) },
+    });
     if (error) {
       setBusy(false);
+      resetCaptcha();
       return setError(friendly(error.message));
     }
     // One active login per account: signing in here signs out other devices.
@@ -150,6 +191,7 @@ export function SignInForm({ url, publishableKey, next = "/app" }: Cfg) {
       <Field label="Password">
         <PasswordInput name="password" autoComplete="current-password" />
       </Field>
+      <Captcha siteKey={captchaSiteKey} />
       <button disabled={busy} className={authButton}>{busy ? "Signing in…" : "Sign in"}</button>
       <Link href="/forgot" className="text-sm underline underline-offset-4">
         Forgot password?
@@ -159,7 +201,7 @@ export function SignInForm({ url, publishableKey, next = "/app" }: Cfg) {
   );
 }
 
-export function ForgotForm({ url, publishableKey }: Cfg) {
+export function ForgotForm({ url, publishableKey, captchaSiteKey }: Cfg) {
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -168,11 +210,14 @@ export function ForgotForm({ url, publishableKey }: Cfg) {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const email = String(new FormData(e.currentTarget).get("email")).trim();
+    const f = new FormData(e.currentTarget);
+    const email = String(f.get("email")).trim();
     const { error } = await createClient(url, publishableKey).auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/auth/callback?next=/auth/update-password`,
+      captchaToken: captchaToken(f),
     });
     setBusy(false);
+    resetCaptcha();
     // Same message whether or not the account exists, so emails can't be probed.
     if (error && /fetch|network/i.test(error.message)) setError(friendly(error.message));
     else setSent(true);
@@ -184,6 +229,7 @@ export function ForgotForm({ url, publishableKey }: Cfg) {
       <Field label="Email">
         <input name="email" type="email" required autoComplete="email" className={authInput} />
       </Field>
+      <Captcha siteKey={captchaSiteKey} />
       <button disabled={busy} className={authButton}>{busy ? "Sending…" : "Send reset link"}</button>
       <ErrorLine text={error} />
     </form>

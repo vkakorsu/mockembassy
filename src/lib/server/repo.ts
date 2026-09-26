@@ -5,6 +5,9 @@ import { readiness, type ReadinessTopic } from "@/lib/domain/readiness";
 import type { PastSession, ProbeResult, SessionPlan } from "@/lib/domain/director";
 import { creditBalance, type Balance } from "@/lib/domain/credits";
 import { drillEntitlement, entitlement, type Entitlement } from "@/lib/domain/entitlement";
+import { isDisposableEmail } from "@/lib/domain/abuse";
+import { env, features } from "@/lib/env";
+import { createServiceClient } from "@/lib/supabase/server";
 
 /** Data access shared by pages, actions and routes. Pass an RLS-scoped client when acting as the user. */
 
@@ -81,22 +84,63 @@ export async function caseCredits(db: SupabaseClient, caseId: string, now = new 
   );
 }
 
-/** Free sessions of one kind this account has started (the free mock and free drills are per account). */
+/**
+ * Free sessions of one kind started by this person: the free mock and free
+ * drills are per inbox, so name+tag@ and Gmail-dot aliases share them
+ * (profiles.email_canonical, migration 17). Reads across accounts, so it
+ * uses the service client.
+ */
 async function freeUsed(db: SupabaseClient, userId: string, drills: boolean): Promise<number> {
-  let q = db
+  const admin = features.supabaseAdmin ? createServiceClient() : db;
+  let userIds = [userId];
+  const { data: me } = await admin.from("profiles").select("email_canonical").eq("id", userId).maybeSingle();
+  if (me?.email_canonical) {
+    const { data: same } = await admin.from("profiles").select("id").eq("email_canonical", me.email_canonical);
+    userIds = [...new Set([userId, ...(same ?? []).map((p) => p.id as string)])];
+  }
+  let q = admin
     .from("sessions")
     .select("id, cases!inner(user_id)", { count: "exact", head: true })
     .eq("is_free", true)
     .not("started_at", "is", null)
-    .eq("cases.user_id", userId);
+    .in("cases.user_id", userIds);
   q = drills ? q.eq("mode", "drill") : q.neq("mode", "drill");
   const { count } = await q;
   return count ?? 0;
 }
 
+/**
+ * Why this account can't have a free session right now, or null: the email
+ * must be confirmed and not a throwaway inbox, and free sessions across
+ * everyone have a daily ceiling (src/lib/domain/abuse.ts). Paid credits
+ * aren't affected.
+ */
+async function freeBlocked(userId: string, now: Date): Promise<string | null> {
+  if (!features.supabaseAdmin) return null;
+  const admin = createServiceClient();
+  const { data } = await admin.auth.admin.getUserById(userId);
+  const user = data.user;
+  if (!user?.email_confirmed_at) return "Confirm your email to use your free sessions. Check your inbox for our link.";
+  if (user.email && isDisposableEmail(user.email)) {
+    return "Free sessions need your real email, not a throwaway inbox. Packs work with any address.";
+  }
+  const since = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+  const { count } = await admin
+    .from("sessions")
+    .select("id", { count: "exact", head: true })
+    .eq("is_free", true)
+    .gte("started_at", since);
+  if ((count ?? 0) >= env.freeSessionsPerDay) return "Free sessions are full for today. Try again tomorrow, or get a pack to start now.";
+  return null;
+}
+
 export async function caseEntitlement(db: SupabaseClient, caseRow: CaseRow, now = new Date()): Promise<Entitlement> {
-  const [credits, freeSessionsUsed] = await Promise.all([caseCredits(db, caseRow.id, now), freeUsed(db, caseRow.user_id, false)]);
-  return entitlement({ credits, freeSessionsUsed });
+  const [credits, freeSessionsUsed, blocked] = await Promise.all([
+    caseCredits(db, caseRow.id, now),
+    freeUsed(db, caseRow.user_id, false),
+    freeBlocked(caseRow.user_id, now),
+  ]);
+  return entitlement({ credits, freeSessionsUsed, freeBlocked: blocked });
 }
 
 /** Readiness 0..1 (src/lib/domain/readiness.ts). */
@@ -105,8 +149,12 @@ export function readinessFrom(sessions: PastSession[], topics: ReadinessTopic[])
 }
 
 export async function caseDrillEntitlement(db: SupabaseClient, caseRow: CaseRow, now = new Date()): Promise<Entitlement> {
-  const [credits, freeDrillsUsed] = await Promise.all([caseCredits(db, caseRow.id, now), freeUsed(db, caseRow.user_id, true)]);
-  return drillEntitlement({ credits, freeDrillsUsed });
+  const [credits, freeDrillsUsed, blocked] = await Promise.all([
+    caseCredits(db, caseRow.id, now),
+    freeUsed(db, caseRow.user_id, true),
+    freeBlocked(caseRow.user_id, now),
+  ]);
+  return drillEntitlement({ credits, freeDrillsUsed, freeBlocked: blocked });
 }
 
 /**

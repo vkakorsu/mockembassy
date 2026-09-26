@@ -57,7 +57,8 @@ export function DocumentUploader(props: { caseId: string; userId: string; visaTy
       const supabase = createClient(props.supabaseUrl, props.publishableKey);
       const { error: upErr } = await supabase.storage.from("documents").upload(path, file, { contentType: file.type });
       if (upErr) throw upErr;
-      await registerDocument(props.caseId, kind, path);
+      const registered = await registerDocument(props.caseId, kind, path);
+      if ("error" in registered) throw new Error(registered.error);
       (e.target as HTMLFormElement).reset();
       router.refresh();
     } catch (err) {

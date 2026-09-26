@@ -1,4 +1,6 @@
+import { tokenAllowed } from "@/lib/domain/abuse";
 import { CaseProfile } from "@/lib/domain/case";
+import { liveBehaviour } from "@/lib/domain/live-behaviour";
 import { features } from "@/lib/env";
 import { clientFingerprint } from "@/lib/server/client-fingerprint";
 import { createLiveToken } from "@/lib/server/gemini";
@@ -15,6 +17,15 @@ export async function POST(req: Request, ctx: RouteContext<"/api/sessions/[id]/t
     // A dropped connection before any answer was logged may reconnect; after that, start a new session.
     const logged = ((session.referee_state as { turns?: unknown[] }).turns ?? []).length;
     if (session.started_at && logged > 0) throw new HttpError(409, "This session already started. Start a new one.");
+    // Whatever the browser does, a session gets a few tokens within its own time, no more.
+    const tokensIssued = (session.tokens_issued as number | null) ?? 0;
+    const gate = tokenAllowed({
+      startedAt: session.started_at ? new Date(session.started_at) : null,
+      tokensIssued,
+      tokenLifetimeSec: liveBehaviour(session.plan).tokenLifetimeSec,
+      now: new Date(),
+    });
+    if (!gate.ok) throw new HttpError(409, gate.reason);
 
     // One live interview at a time per account (a shared login can't run two).
     // Tokens expire within minutes of the planned length, so 8 minutes covers any live one.
@@ -40,10 +51,19 @@ export async function POST(req: Request, ctx: RouteContext<"/api/sessions/[id]/t
       .eq("version", session.profile_version)
       .single();
     const profile = CaseProfile.parse(prof!.profile);
+    // Claim the token before minting it; two requests racing for the same count can't both win.
+    const { data: claimed } = await admin
+      .from("sessions")
+      .update({ tokens_issued: tokensIssued + 1 })
+      .eq("id", id)
+      .eq("tokens_issued", tokensIssued)
+      .select("id");
+    if (!claimed?.length) throw new HttpError(409, "This interview is already connecting. Try again in a moment.");
     const live = await createLiveToken(session.plan, profile);
     await admin
       .from("sessions")
-      .update({ started_at: new Date().toISOString(), client_fp: clientFingerprint(req) })
+      // A reconnect keeps the first start: the clock (and the reconnect window) runs from there.
+      .update({ started_at: session.started_at ?? new Date().toISOString(), client_fp: clientFingerprint(req) })
       .eq("id", id);
     return Response.json({ ...live, targetDurationSec: session.plan.targetDurationSec });
   } catch (e) {

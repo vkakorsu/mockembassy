@@ -12,7 +12,7 @@ export default function Forgot() {
   if (!features.supabase) redirect("/setup");
   return (
     <AuthShell title="Reset password" aside={<Link href="/login" className="text-sm underline underline-offset-4">Back to sign in</Link>}>
-      <ForgotForm url={env.supabaseUrl!} publishableKey={env.supabasePublishableKey!} />
+      <ForgotForm url={env.supabaseUrl!} publishableKey={env.supabasePublishableKey!} captchaSiteKey={env.turnstileSiteKey} />
     </AuthShell>
   );
 }

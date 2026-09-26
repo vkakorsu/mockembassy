@@ -4,6 +4,7 @@
  * the Vercel ↔ Supabase integration variables and Supabase's newer key names.
  */
 
+import { DEFAULT_FREE_SESSIONS_PER_DAY } from "@/lib/domain/abuse";
 import { siteOrigin } from "@/lib/site";
 
 const first = (...names: string[]) => {
@@ -45,6 +46,12 @@ export const env = {
     .filter(Boolean),
 
   paystackSecretKey: first("PAYSTACK_SECRET_KEY"),
+
+  // Cloudflare Turnstile on sign-up, sign-in and password reset. Only shown
+  // when set; turn on CAPTCHA protection in Supabase Auth with the secret key.
+  turnstileSiteKey: first("NEXT_PUBLIC_TURNSTILE_SITE_KEY"),
+  // Free sessions started across all accounts per 24 hours: a ceiling on a sign-up flood.
+  freeSessionsPerDay: Number(first("FREE_SESSIONS_PER_DAY") ?? DEFAULT_FREE_SESSIONS_PER_DAY),
 
   // Cedis per US dollar, for converting statement balances. Approximate: the
   // user sees the conversion and confirms or corrects the dollar figure.

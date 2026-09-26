@@ -27,6 +27,8 @@ export interface NextStepInput {
   /** Started sessions, newest first. */
   sessions: { mode: string; ended: boolean }[];
   canInterview: "full" | "free" | "none";
+  /** Why no interview can start (e.g. free sessions need a confirmed email), when that's the case. */
+  interviewNote?: string;
   canDrill: "full" | "free" | "none";
   /** The weakest topic to drill, if one is known. */
   weakest: { probeId: string; question: string } | null;
@@ -102,7 +104,7 @@ export function nextStep(i: NextStepInput): NextStep {
 
   // Practice.
   if (!progress.firstInterview) {
-    if (i.canInterview === "none") return step("buy", "Get interviews to start practising", "Your free mock is used. Packs start at GH₵149.", buy);
+    if (i.canInterview === "none") return step("buy", "Get interviews to start practising", `${i.interviewNote ?? "Your free mock is used."} Packs start at GH₵149.`, buy);
     return step(
       "first",
       i.canInterview === "free" ? "Take your free mock" : "Take your first interview",

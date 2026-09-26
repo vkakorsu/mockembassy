@@ -29,7 +29,7 @@ export default async function Login(props: PageProps<"/login">) {
           you created the account.)
         </p>
       )}
-      <SignInForm url={env.supabaseUrl!} publishableKey={env.supabasePublishableKey!} next={safeNext} />
+      <SignInForm url={env.supabaseUrl!} publishableKey={env.supabasePublishableKey!} next={safeNext} captchaSiteKey={env.turnstileSiteKey} />
     </AuthShell>
   );
 }

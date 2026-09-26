@@ -52,6 +52,7 @@ const NOTICES: Record<string, string> = {
   "date-in-past": "That date is in the past.",
   "outcome-thanks": "Thank you. Your result helps make the officer more realistic for the next applicant.",
   paid: "Payment received. Your interviews and drills are ready.",
+  "reads-limit": "You've uploaded or re-read a lot of documents today. Try again tomorrow.",
   "case-limit": "An account is for one applicant. Someone else practising needs their own account.",
   "payment-pending": "We're still confirming your payment. This page will update shortly.",
   "drill-unavailable": "That question can't be drilled any more (your confirmed facts changed). Pick another from a debrief.",

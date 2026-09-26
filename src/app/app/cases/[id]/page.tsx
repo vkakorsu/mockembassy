@@ -88,6 +88,7 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
     pendingNotes: pendingNotes ?? 0,
     sessions: (sessions ?? []).map((x) => ({ mode: x.mode, ended: Boolean(x.ended_at) })),
     canInterview: ent.kind,
+    interviewNote: ent.kind === "none" ? ent.reason : undefined,
     canDrill: drillEnt.kind,
     weakest: weak ? { probeId: weak.id, question: weak.question } : null,
     daysToInterview: daysToGo,

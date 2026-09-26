@@ -5,7 +5,7 @@ The app runs without any keys. Each feature shows a "not configured" state until
 ## 1. Supabase
 
 **Status (26 Sep 2026):**
-- Project **`okwan`** (ref `itvgkkwsxyobkwkrrrwg`, eu-west-1) has all sixteen migrations applied, and an admin invite is set for the owner's email. The security advisors are clean apart from intentional notes: `asked_questions`, `admin_audit_log` and `admin_invites` are server-only.
+- Project **`okwan`** (ref `itvgkkwsxyobkwkrrrwg`, eu-west-1) has all seventeen migrations applied, and an admin invite is set for the owner's email. The security advisors are clean apart from intentional notes: `asked_questions`, `admin_audit_log`, `admin_invites` and `document_reads` are server-only.
 - **Remaining steps:** set the environment variables in Vercel (step 1) and enable Phone auth (step 3). Step 2 is already done for this project.
 
 
@@ -44,6 +44,15 @@ The app runs without any keys. Each feature shows a "not configured" state until
 
 ## 4. Site
 - `NEXT_PUBLIC_SITE_URL`: e.g. `https://okwan.ai`. It's used for canonical URLs, the sitemap and the Paystack return URL.
+
+## 5. Bot protection (Cloudflare Turnstile)
+Do these in order, or sign-in breaks in between:
+1. In the Cloudflare dashboard, open **Turnstile → Add widget**. Add your domain (and `okwan-phi.vercel.app`) and choose **Managed**. Copy the site key and the secret key.
+2. In Vercel, set `NEXT_PUBLIC_TURNSTILE_SITE_KEY` to the site key and redeploy. The check appears on sign-up, sign-in and password reset.
+3. In Supabase, open **Authentication → Attack Protection**, turn on **CAPTCHA protection**, choose **Turnstile** and paste the secret key.
+
+Also keep **Confirm email** on (Authentication → Sign In / Providers → Email): the free sessions need a confirmed email.
+Optional: `FREE_SESSIONS_PER_DAY` (default 300) caps free sessions across everyone per 24 hours.
 
 ## How a session flows (for debugging)
 

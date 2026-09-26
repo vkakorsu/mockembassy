@@ -5,6 +5,7 @@ import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { DOCUMENT_READS_PER_DAY, MAX_DOCUMENTS } from "@/lib/domain/abuse";
 import { CaseProfile } from "@/lib/domain/case";
 import { CHECKLIST_ID } from "@/lib/domain/checklist";
 import { ExtractedFacts } from "@/lib/domain/draft";
@@ -101,11 +102,34 @@ const DocKind = z.enum([
   "passport_travel_page", "other",
 ]);
 
+/**
+ * Every upload or re-read is one Gemini call, so they're counted per account
+ * per day (src/lib/domain/abuse.ts). Returns why not, or null and records the read.
+ */
+async function claimDocumentRead(caseId: string): Promise<string | null> {
+  const admin = createServiceClient();
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { count } = await admin.from("document_reads").select("id", { count: "exact", head: true }).eq("case_id", caseId).gte("at", since);
+  if ((count ?? 0) >= DOCUMENT_READS_PER_DAY) return "You've uploaded or re-read a lot of documents today. Try again tomorrow.";
+  await admin.from("document_reads").insert({ case_id: caseId });
+  return null;
+}
+
 /** Called after the browser uploads the file to Storage under "<user_id>/<case_id>/…". */
-export async function registerDocument(caseId: string, kind: string, storagePath: string) {
+export async function registerDocument(caseId: string, kind: string, storagePath: string): Promise<{ id: string } | { error: string }> {
   const { user, supabase } = await requireUser();
   const docKind = DocKind.parse(kind);
   if (!storagePath.startsWith(`${user.id}/${caseId}/`)) throw new Error("Invalid path");
+  const { count } = await supabase.from("documents").select("id", { count: "exact", head: true }).eq("case_id", caseId);
+  const refused =
+    (count ?? 0) >= MAX_DOCUMENTS
+      ? `You have ${MAX_DOCUMENTS} documents. Delete one you don't need, then upload this one.`
+      : await claimDocumentRead(caseId);
+  if (refused) {
+    // The file is already in Storage; don't keep what we won't read.
+    await createServiceClient().storage.from("documents").remove([storagePath]);
+    return { error: refused };
+  }
   const { data, error } = await supabase
     .from("documents")
     .insert({ case_id: caseId, kind: docKind, storage_path: storagePath })
@@ -123,6 +147,7 @@ export async function retryExtraction(documentId: string) {
   const { data } = await supabase.from("documents").select("case_id, extraction_status").eq("id", documentId).maybeSingle();
   if (!data) return;
   if (data.extraction_status !== "pending" && features.gemini && features.supabaseAdmin) {
+    if (await claimDocumentRead(data.case_id)) redirect(`/app/cases/${data.case_id}/documents?notice=reads-limit`);
     await createServiceClient().from("documents").update({ extraction_status: "pending", extraction_error: null }).eq("id", documentId);
     after(() => runExtraction(documentId));
   }

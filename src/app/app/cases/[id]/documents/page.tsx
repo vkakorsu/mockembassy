@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { deleteDocument, retryExtraction } from "@/app/app/actions";
 import { AutoRefresh } from "@/components/app/auto-refresh";
 import { DocumentUploader } from "@/components/app/document-uploader";
-import { BackLink, Button, Card, PageTitle } from "@/components/app/ui";
+import { BackLink, Button, Card, Notice, PageTitle } from "@/components/app/ui";
 import { env, features } from "@/lib/env";
 import { requireUser } from "@/lib/server/auth";
 import { getCase } from "@/lib/server/repo";
@@ -14,6 +14,7 @@ const STATUS: Record<string, string> = { pending: "Reading…", done: "Read", fa
 
 export default async function Documents(props: PageProps<"/app/cases/[id]/documents">) {
   const { id } = await props.params;
+  const { notice } = await props.searchParams;
   const { user, supabase } = await requireUser(`/app/cases/${id}/documents`);
   const caseRow = await getCase(supabase, id);
   if (!caseRow) notFound();
@@ -27,6 +28,7 @@ export default async function Documents(props: PageProps<"/app/cases/[id]/docume
     <>
       {(docs ?? []).some((d) => d.extraction_status === "pending") && <AutoRefresh />}
       <BackLink href={`/app/cases/${id}`}>{caseRow.applicant_name}</BackLink>
+      <Notice code={notice} />
       <PageTitle eyebrow="Documents" title="What the officer will see">
         Upload what you&rsquo;ll bring to the interview. We read the facts, then you confirm them. Only confirmed facts are
         used.

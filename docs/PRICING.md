@@ -51,8 +51,10 @@ All prices include **20% VAT** and can be paid with MTN MoMo, Telecel Cash, Airt
 
 - **Fake dates:** nothing to gain. The date doesn't unlock anything.
 - **One account, one applicant:** the database allows one case per account (migration 16), so credits belong to the account and the person on it. Someone else practising signs up themselves. Sharing a login splits the same credits; it can't create more. The applicant's identity locks after the first paid interview (first name, age ±1, visa type, school and program), one login is active at a time, one live interview at a time per account, and the admin quality page flags accounts used from 3+ network and browser combinations.
-- **Free tier:** one free mock and 3 free drills per account.
-- **Cost of a single session** is capped by the Live token's lifetime (planned length plus 3 minutes).
+- **Free tier:** one free mock and 3 free drills per inbox: name+tag@ and Gmail-dot aliases share them (`profiles.email_canonical`, migration 17). Free sessions need a confirmed email that isn't a throwaway inbox, and all free sessions together are capped at `FREE_SESSIONS_PER_DAY` (default 300) per 24 hours, so a sign-up flood has a fixed daily cost. Cloudflare Turnstile guards sign-up, sign-in and password reset once `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is set and CAPTCHA protection is on in Supabase.
+- **Cost of a single session:** at most 3 Live tokens (the first plus reconnects), only within the session's own time from its first start; each token lives for the planned length plus 3 minutes. Enforced by the server whatever the browser does (`src/lib/domain/abuse.ts`).
+- **Documents:** at most 25 on an account and 40 reads (uploads and re-reads) per 24 hours, counted in `document_reads` so deleting and re-uploading still counts. Storage refuses more than 60 document files or 800 recordings per account.
+- **Payments:** the Paystack webhook signature is checked, and every payment is re-verified with Paystack and must match the pack price before credits are granted.
 
 ---
 

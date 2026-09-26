@@ -17,7 +17,7 @@ export async function ownedSession(sessionId: string) {
   if (!auth.user) throw new HttpError(401, "Sign in first");
   const { data: session } = await supabase
     .from("sessions")
-    .select("id, case_id, profile_version, plan, referee_state, started_at, ended_at, is_free")
+    .select("id, case_id, profile_version, plan, referee_state, started_at, ended_at, is_free, tokens_issued")
     .eq("id", sessionId)
     .maybeSingle();
   if (!session) throw new HttpError(404, "Session not found");
