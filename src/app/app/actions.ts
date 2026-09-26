@@ -81,7 +81,7 @@ export async function setInterviewDate(caseId: string, formData: FormData) {
 /* ------------------------------------------------------------- documents */
 
 const DocKind = z.enum([
-  "ds160", "i20", "ds2019", "admission_letter", "bank_statement", "sponsor_letter", "employment_letter",
+  "ds160", "i20", "ds2019", "admission_letter", "scholarship_letter", "bank_statement", "sponsor_letter", "employment_letter",
   "business_registration", "property", "invitation_letter", "refusal_letter", "appointment_confirmation",
   "passport_travel_page", "other",
 ]);

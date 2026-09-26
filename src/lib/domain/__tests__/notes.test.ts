@@ -32,6 +32,7 @@ describe("case notes", () => {
     expect(matchDocumentKind("your bank statements", folder)).toBe("bank_statement");
     expect(matchDocumentKind("a letter from your employer", folder)).toBe("employment_letter");
     expect(matchDocumentKind("property deed", folder)).toBeNull();
+    expect(matchDocumentKind("your financial aid award", ["bank_statement", "scholarship_letter"])).toBe("scholarship_letter");
   });
 
   it("plans questions from the applicant's own notes across sessions", () => {

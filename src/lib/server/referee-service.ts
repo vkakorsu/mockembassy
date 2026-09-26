@@ -189,7 +189,7 @@ async function documentView(
           ? { sponsors: p.funding.sponsors }
           : kind === "employment_letter" || kind === "business_registration"
             ? { employer: p.ties.employer, role: p.ties.role, yearsEmployed: p.ties.yearsEmployed, ownsBusiness: p.ties.ownsBusiness }
-            : kind === "i20" || kind === "admission_letter"
+            : kind === "i20" || kind === "admission_letter" || kind === "scholarship_letter"
               ? { study: { ...p.study, postStudyPlan: undefined } }
               : kind === "invitation_letter"
                 ? { visit: p.visit }
