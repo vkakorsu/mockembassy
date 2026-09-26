@@ -33,6 +33,7 @@ export const ExtractedFacts = z.object({
       level: z.enum(["undergraduate", "masters", "phd", "certificate"]),
       startTerm: z.string().max(40),
       i20Year1CostUsd: z.number(),
+      scholarshipUsd: z.number(),
       currentOccupation: z.string().max(160),
     })
     .partial()
@@ -78,7 +79,7 @@ export const ExtractedFacts = z.object({
   usContacts: z.array(UsContact).max(10).optional(),
   appointment: z.object({ date: z.string().max(40), post: z.string().max(60) }).partial().optional(),
   /** Facts specific to this applicant that the fields above can't hold. */
-  notes: z.array(ExtractedNote).max(12).optional(),
+  notes: z.array(ExtractedNote).max(8).optional(),
 });
 export type ExtractedFacts = z.infer<typeof ExtractedFacts>;
 
@@ -87,6 +88,41 @@ export interface DraftConflict {
   existing: unknown;
   incoming: unknown;
   source: string;
+  /** The document that raised it, so reading that document again replaces it. */
+  documentId?: string;
+}
+
+const norm = (v: unknown) =>
+  String(v)
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+/**
+ * Whether two values say the same thing. Case, punctuation and spacing don't
+ * count ("HO" = "Ho"), nor does one being a fuller form of the other
+ * ("Vincent" / "Vincent Kofi", "Computer Science" / "Computer Science, General").
+ */
+export function sameValue(a: unknown, b: unknown): boolean {
+  if (typeof a === "number" && typeof b === "number") return Math.abs(a - b) <= Math.max(1, 0.005 * Math.max(a, b));
+  if (typeof a !== "string" || typeof b !== "string") return JSON.stringify(a) === JSON.stringify(b);
+  const x = norm(a);
+  const y = norm(b);
+  if (x === y) return true;
+  const [short, long] = x.length <= y.length ? [x, y] : [y, x];
+  return short.length >= 3 && ` ${long} `.includes(` ${short} `);
+}
+
+/** Drops repeats of the same disagreement. */
+export function dedupeConflicts(conflicts: DraftConflict[]): DraftConflict[] {
+  const seen = new Set<string>();
+  return conflicts.filter((c) => {
+    const key = [c.path, norm(c.existing), norm(c.incoming)].join("|");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 type Obj = Record<string, unknown>;
@@ -108,7 +144,7 @@ export function mergeDraft(existing: Obj, incoming: Obj, source: string, path = 
     } else if (Array.isArray(current) && Array.isArray(value)) {
       const seen = new Set(current.map((v) => JSON.stringify(v)));
       merged[key] = [...current, ...value.filter((v) => !seen.has(JSON.stringify(v)))];
-    } else if (JSON.stringify(current) !== JSON.stringify(value)) {
+    } else if (!sameValue(current, value)) {
       conflicts.push({ path: here, existing: current, incoming: value, source });
     }
   }

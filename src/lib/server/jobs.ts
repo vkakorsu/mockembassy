@@ -2,10 +2,10 @@ import "server-only";
 import { CaseProfile } from "@/lib/domain/case";
 import { deliveryMetrics } from "@/lib/domain/delivery";
 import type { SessionPlan } from "@/lib/domain/director";
-import { mergeDraft, type DraftConflict } from "@/lib/domain/draft";
+import { dedupeConflicts, mergeDraft, type DraftConflict } from "@/lib/domain/draft";
 import { mergeGrades } from "@/lib/domain/grade-merge";
 import { validateRewrite } from "@/lib/domain/rewrite-validator";
-import { redactIdentifiers, toUsd } from "@/lib/domain/notes";
+import { isDuplicateNote, redactIdentifiers, toUsd } from "@/lib/domain/notes";
 import { env } from "@/lib/env";
 import { extractFacts, gradeDebrief, isTransient, transcribeDocument } from "@/lib/server/gemini";
 import { createServiceClient } from "@/lib/supabase/server";
@@ -55,7 +55,11 @@ export async function runExtraction(documentId: string) {
     const { data: caseRow } = await db.from("cases").select("draft_profile, interview_at").eq("id", doc.case_id).single();
     const existing = (caseRow?.draft_profile ?? {}) as Record<string, unknown>;
     const { merged, conflicts } = mergeDraft(existing, profileFacts, doc.kind);
-    const allConflicts = [...((existing._conflicts as DraftConflict[]) ?? []), ...conflicts];
+    // Reading a document again replaces its earlier disagreements.
+    const allConflicts = dedupeConflicts([
+      ...((existing._conflicts as DraftConflict[]) ?? []).filter((c) => c.documentId !== doc.id),
+      ...conflicts.map((c) => ({ ...c, documentId: doc.id })),
+    ]);
     await db
       .from("cases")
       .update({ draft_profile: { ...merged, _conflicts: allConflicts, ...(fx ? { _fx: fx } : {}) } })
@@ -64,11 +68,16 @@ export async function runExtraction(documentId: string) {
     // Re-reading replaces this document's undecided notes; decided ones stay
     // (and a removed note doesn't come back).
     await db.from("case_notes").delete().eq("document_id", doc.id).eq("status", "pending");
-    const { data: kept } = await db.from("case_notes").select("text").eq("document_id", doc.id);
-    const keptTexts = new Set((kept ?? []).map((n) => n.text));
-    const fresh = (notes ?? [])
-      .map((n) => ({ ...n, text: redactIdentifiers(n.text), quote: n.quote ? redactIdentifiers(n.quote) : null }))
-      .filter((n) => !keptTexts.has(n.text));
+    // Skip notes that repeat one already on the case (the I-20 and the admission
+    // letter often state the same scholarship).
+    const { data: existingNotes } = await db.from("case_notes").select("text").eq("case_id", doc.case_id);
+    const known = (existingNotes ?? []).map((n) => n.text as string);
+    const fresh: { category: string; text: string; quote: string | null }[] = [];
+    for (const n of notes ?? []) {
+      const text = redactIdentifiers(n.text);
+      if ([...known, ...fresh.map((f) => f.text)].some((k) => isDuplicateNote(k, text))) continue;
+      fresh.push({ category: n.category, text, quote: n.quote ? redactIdentifiers(n.quote) : null });
+    }
     if (fresh.length) {
       await db.from("case_notes").insert(
         fresh.map((n) => ({

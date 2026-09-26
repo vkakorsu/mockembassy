@@ -164,6 +164,7 @@ export async function confirmProfile(caseId: string, _prev: ConfirmState, f: For
             level: str(f.get("study.level")) ?? "masters",
             startTerm: str(f.get("study.startTerm")) ?? "",
             i20Year1CostUsd: num(f.get("study.i20Year1CostUsd")),
+            scholarshipUsd: num(f.get("study.scholarshipUsd")),
             currentOccupation: str(f.get("study.currentOccupation")),
             postStudyPlan: str(f.get("study.postStudyPlan")),
           }
@@ -224,6 +225,10 @@ export async function confirmProfile(caseId: string, _prev: ConfirmState, f: For
     .from("case_profiles")
     .insert({ case_id: caseId, version: parsed.data.version, profile: parsed.data });
   if (error) return { error: error.message };
+  // The user has settled what's true, so earlier disagreements are resolved.
+  const { _conflicts: _resolved, ...draft } = (caseRow.draft_profile ?? {}) as Record<string, unknown>;
+  void _resolved;
+  await createServiceClient().from("cases").update({ draft_profile: draft }).eq("id", caseId);
   redirect(`/app/cases/${caseId}?notice=profile-confirmed`);
 }
 

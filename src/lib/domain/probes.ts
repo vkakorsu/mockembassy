@@ -1,4 +1,4 @@
-import type { CaseProfile, VisaType } from "./case";
+import { fundingGapUsd, type CaseProfile, type VisaType } from "./case";
 
 /**
  * The probe taxonomy. A probe is a hypothesis the officer tests. The Director
@@ -99,8 +99,8 @@ export const PROBES: readonly Probe[] = [
     visaTypes: f1,
     category: "funding",
     critical: true,
-    relevance: (c) => (c.study && c.funding.liquidFundsUsd < c.study.i20Year1CostUsd ? 1 : 0),
-    grounding: ["study.i20Year1CostUsd", "funding.liquidFundsUsd"],
+    relevance: (c) => (fundingGapUsd(c) > 0 ? 1 : 0),
+    grounding: ["study.i20Year1CostUsd", "study.scholarshipUsd", "funding.liquidFundsUsd"],
     entry: [
       "Your I-20 says about ${i20} for the first year. Where is that money coming from?",
       "How will you cover the full first-year cost?",
@@ -110,6 +110,23 @@ export const PROBES: readonly Probe[] = [
     followUpVague: ["And the second year?"],
     followUpContradiction: ["Those numbers don't add up. Explain it to me."],
     mustInclude: () => ["the exact source covering the shortfall"],
+  },
+  {
+    id: "f1.funding.scholarship",
+    visaTypes: f1,
+    category: "funding",
+    critical: false,
+    relevance: (c) => (c.study?.scholarshipUsd ? 0.8 : 0),
+    grounding: ["study.scholarshipUsd"],
+    entry: [
+      "I see a scholarship on your I-20. What is it for?",
+      "Why did {school} give you a scholarship?",
+      "Does your scholarship renew every year?",
+      "What does the scholarship cover, and what doesn't it?",
+    ],
+    followUpVague: ["What do you have to do to keep it?"],
+    followUpContradiction: ["That's not what your I-20 shows."],
+    mustInclude: () => ["what the scholarship is for and what it covers", "how the rest is paid"],
   },
   {
     id: "f1.funding.deposit",

@@ -1,4 +1,4 @@
-import type { CaseProfile } from "./case";
+import { fundingGapUsd, type CaseProfile } from "./case";
 
 /**
  * Case Scan: where the officer is likely to press. Deliberately no approval
@@ -19,13 +19,13 @@ export function scanCase(c: CaseProfile): CaseFlag[] {
   const flags: CaseFlag[] = [];
   const sponsor = c.funding.sponsors[0];
 
-  if (c.study && c.funding.liquidFundsUsd < c.study.i20Year1CostUsd) {
-    const gap = c.study.i20Year1CostUsd - c.funding.liquidFundsUsd;
+  const gap = fundingGapUsd(c);
+  if (gap > 0) {
     flags.push({
       id: "funding_gap",
       severity: "high",
       title: "Funding doesn't cover year one",
-      detail: `Documented funds are about $${gap.toLocaleString("en-US")} short of the I-20 first-year cost. Practice won't fix this; the evidence has to.`,
+      detail: `Documented funds${c.study?.scholarshipUsd ? " plus your scholarship" : ""} are about $${gap.toLocaleString("en-US")} short of the I-20 first-year cost. Practice won't fix this; the evidence has to.`,
       probes: ["f1.funding.gap", "f1.funding.sponsor"],
     });
   }

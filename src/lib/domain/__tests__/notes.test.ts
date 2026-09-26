@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { NOTE_PROBE_PREFIX, planSession } from "../director";
 import { amaF1 } from "../fixtures";
-import { matchDocumentKind, redactIdentifiers, toUsd, type CaseNote } from "../notes";
+import { isDuplicateNote, matchDocumentKind, redactIdentifiers, toUsd, type CaseNote } from "../notes";
 import { buildOfficerInstruction } from "../officer-prompt";
 
 const notes: CaseNote[] = [
@@ -60,5 +60,16 @@ describe("case notes", () => {
     const a = planSession({ profile: amaF1, pastSessions: [], readiness: 0.4, mode: "real", seed: "same" });
     const b = planSession({ profile: amaF1, pastSessions: [], readiness: 0.4, mode: "real", seed: "same", notes: [] });
     expect(b.probes).toEqual(a.probes);
+  });
+
+  it("recognises the same fact stated by two documents", () => {
+    expect(
+      isDuplicateNote(
+        "The student received a $67,674 scholarship from Loyola University New Orleans toward the 9-month estimated cost of $73,790.",
+        "The applicant was awarded an institutional merit-based Ignatian Scholarship of $67,674 annually.",
+      ),
+    ).toBe(true);
+    expect(isDuplicateNote("Completed secondary school at Mawuli School in 2022.", "Belongs to four charitable organizations in Ghana.")).toBe(false);
+    expect(isDuplicateNote("Program runs from 2025 to 2030.", "Visited the UK in 2025.")).toBe(false);
   });
 });

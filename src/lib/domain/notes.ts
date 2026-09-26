@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { similarity } from "./similarity";
 
 /**
  * Case notes: facts specific to one applicant that don't fit the structured
@@ -95,4 +96,21 @@ export function toUsd(amount: number, currency: string, ghsPerUsd: number): numb
   if (["USD", "US$", "$"].includes(c)) return Math.round(amount);
   if (["GHS", "GH₵", "GHC", "CEDI", "CEDIS", "₵"].includes(c)) return Math.round(amount / ghsPerUsd);
   return undefined;
+}
+
+/** Amounts in a sentence (years and small numbers left out). */
+function amounts(text: string): number[] {
+  return [...text.matchAll(/\d[\d,]*(?:\.\d+)?/g)]
+    .map((m) => Number(m[0].replace(/,/g, "")))
+    .filter((n) => n >= 100 && !(n >= 1900 && n <= 2100 && Number.isInteger(n)));
+}
+
+/**
+ * Whether two notes state the same fact: close wording, or the same amount
+ * (the I-20 and the admission letter describe one scholarship differently).
+ */
+export function isDuplicateNote(a: string, b: string): boolean {
+  if (similarity(a, b) >= 0.5) return true;
+  const x = amounts(a);
+  return x.length > 0 && amounts(b).some((n) => x.includes(n));
 }

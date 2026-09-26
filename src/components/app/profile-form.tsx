@@ -55,6 +55,7 @@ export function ProfileForm({
           </Field>
           <Field label="Start term"><input name="study.startTerm" defaultValue={v("study.startTerm")} placeholder="Fall 2027" className={inputCls} /></Field>
           <Field label="I-20 first-year cost (USD)"><input name="study.i20Year1CostUsd" type="number" min={0} defaultValue={v("study.i20Year1CostUsd")} className={inputCls} required /></Field>
+          <Field label="Scholarship or school funding per year (USD)" hint="As on your I-20. Leave empty if none."><input name="study.scholarshipUsd" type="number" min={0} defaultValue={v("study.scholarshipUsd")} className={inputCls} /></Field>
           <Field label="What you do now"><input name="study.currentOccupation" defaultValue={v("study.currentOccupation")} className={inputCls} /></Field>
           <div className="col-span-full">
             <Field label="Your honest plan after graduating" hint="Only used for coaching, in your words. Never shown to the officer as a fact they 'know'.">

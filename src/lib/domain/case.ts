@@ -45,6 +45,8 @@ export const CaseProfile = z.object({
       level: z.enum(["undergraduate", "masters", "phd", "certificate"]),
       startTerm: z.string().max(40),
       i20Year1CostUsd: Usd,
+      /** Scholarship or other school funding per year (the I-20's "funds from this school"). */
+      scholarshipUsd: Usd.optional(),
       currentOccupation: z.string().max(160).optional(),
       postStudyPlan: z.string().max(400).optional(),
     })
@@ -78,3 +80,9 @@ export const CaseProfile = z.object({
 });
 
 export type CaseProfile = z.infer<typeof CaseProfile>;
+
+/** What the applicant still has to show for year one after school funding. 0 when covered. */
+export function fundingGapUsd(c: CaseProfile): number {
+  if (!c.study) return 0;
+  return Math.max(0, c.study.i20Year1CostUsd - (c.study.scholarshipUsd ?? 0) - c.funding.liquidFundsUsd);
+}
