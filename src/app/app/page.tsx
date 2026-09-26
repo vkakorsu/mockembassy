@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { countdownLabel, daysUntil } from "@/components/app/countdown";
 import { NewCaseForm } from "@/components/app/new-case-form";
 import { Card, Notice, PageTitle } from "@/components/app/ui";
 import { requireUser } from "@/lib/server/auth";
@@ -26,7 +27,14 @@ export default async function Dashboard(props: PageProps<"/app">) {
               <p className="text-sm text-muted">{c.visa_type === "F1" ? "F-1 student" : "B1/B2 visitor"}</p>
               <p className="font-display mt-1 text-3xl">{c.applicant_name}</p>
               <p className="mt-2 text-sm text-muted">
-                {c.interview_at ? `Interview ${new Date(c.interview_at).toDateString()}` : "Interview date not set"} ·{" "}
+                {c.interview_at ? (
+                  <span className={daysUntil(c.interview_at) >= 0 && daysUntil(c.interview_at) <= 7 ? "font-semibold text-refused" : "font-semibold text-fg"}>
+                    {countdownLabel(daysUntil(c.interview_at))}
+                  </span>
+                ) : (
+                  "Interview date not set"
+                )}{" "}
+                ·{" "}
                 {(c.sessions as unknown as { count: number }[])[0]?.count ?? 0} sessions
               </p>
             </Link>

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { reportOutcome, setInterviewDate, startDrill, startSession } from "@/app/app/actions";
 import { Button, Card, Field, inputCls, Notice, PageTitle } from "@/components/app/ui";
+import { Countdown, daysUntil } from "@/components/app/countdown";
 import { Checklist } from "@/components/case-report";
 import { MODE_INFO } from "@/lib/modes";
 import { scanCase } from "@/lib/domain/case-scan";
@@ -26,7 +27,6 @@ const SEVERITY: Record<string, string> = {
 };
 
 const hasPassed = (d: Date) => d.getTime() < Date.now();
-const daysUntil = (d: Date) => Math.ceil((d.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
 
 export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
   const { id } = await props.params;
@@ -70,13 +70,16 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
         }))
     : [];
   const interview = caseRow.interview_at ? new Date(caseRow.interview_at) : null;
-  const daysToGo = interview ? daysUntil(interview) : null;
+  const daysToGo = caseRow.interview_at ? daysUntil(caseRow.interview_at) : null;
   const interviewPassed = interview ? hasPassed(interview) : false;
 
   return (
     <>
       <Notice code={notice} />
-      <PageTitle eyebrow={caseRow.visa_type === "F1" ? "F-1 student" : "B1/B2 visitor"} title={caseRow.applicant_name} />
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <PageTitle eyebrow={caseRow.visa_type === "F1" ? "F-1 student" : "B1/B2 visitor"} title={caseRow.applicant_name} />
+        <Countdown interviewAt={caseRow.interview_at} caseId={id} days={daysToGo} />
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         <div className="space-y-6">
@@ -252,10 +255,9 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
           </Card>
 
           <Card>
-            <h2 className="font-display text-2xl uppercase">Interview date</h2>
-            {daysToGo !== null && daysToGo >= 0 && (
-              <p className="mt-1 text-sm">{daysToGo === 0 ? "Today. You've got this." : `${daysToGo} day${daysToGo === 1 ? "" : "s"} to go.`}</p>
-            )}
+            <h2 id="interview-date" className="scroll-mt-6 font-display text-2xl uppercase">
+              Interview date
+            </h2>
             <form action={setInterviewDate.bind(null, id)} className="mt-4 flex gap-2">
               <input name="interviewDate" type="date" required defaultValue={interview ? interview.toISOString().slice(0, 10) : ""} className={inputCls} />
               <Button variant="ghost">Save</Button>
