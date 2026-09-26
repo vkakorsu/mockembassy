@@ -179,25 +179,33 @@ async function timed(name: string, fn: () => Promise<string>): Promise<HealthChe
   }
 }
 
+/** Model ids this key can use, split by Live (bidi) and Flash. A free call. */
+export async function availableModels() {
+  const liveModels: string[] = [];
+  const flashModels: string[] = [];
+  const pager = await genai().models.list({ config: { pageSize: 200 } });
+  for await (const m of pager) {
+    const id = (m.name ?? "").replace(/^models\//, "");
+    const actions = m.supportedActions ?? [];
+    if (actions.includes("bidiGenerateContent")) liveModels.push(id);
+    else if (actions.includes("generateContent") && /flash/.test(id)) flashModels.push(id);
+  }
+  return { liveModels: liveModels.sort(), flashModels: flashModels.sort() };
+}
+
 /**
  * Real calls against the configured key: which models the key can see, a tiny
  * structured Flash call, and a Live token with the officer config locked in.
  * Nothing secret is returned.
  */
 export async function geminiHealth(): Promise<{ checks: HealthCheck[]; liveModels: string[]; flashModels: string[] }> {
-  const liveModels: string[] = [];
-  const flashModels: string[] = [];
+  let liveModels: string[] = [];
+  let flashModels: string[] = [];
   const checks: HealthCheck[] = [];
 
   checks.push(
     await timed("List models", async () => {
-      const pager = await genai().models.list({ config: { pageSize: 200 } });
-      for await (const m of pager) {
-        const id = (m.name ?? "").replace(/^models\//, "");
-        const actions = m.supportedActions ?? [];
-        if (actions.includes("bidiGenerateContent")) liveModels.push(id);
-        else if (actions.includes("generateContent") && /flash/.test(id)) flashModels.push(id);
-      }
+      ({ liveModels, flashModels } = await availableModels());
       const want = [env.geminiLiveModel, env.geminiFlashModel];
       const missing = want.filter((w) => !liveModels.includes(w) && !flashModels.includes(w));
       if (missing.length) throw new Error(`Not visible to this key: ${missing.join(", ")}`);
@@ -230,5 +238,5 @@ export async function geminiHealth(): Promise<{ checks: HealthCheck[]; liveModel
     }),
   );
 
-  return { checks, liveModels: liveModels.sort(), flashModels: flashModels.sort() };
+  return { checks, liveModels, flashModels };
 }
