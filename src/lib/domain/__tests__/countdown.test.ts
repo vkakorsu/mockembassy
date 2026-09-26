@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countdownLabel, daysUntil } from "@/components/app/countdown";
+import { countdownLabel, daysUntil } from "@/lib/countdown";
 
 describe("interview countdown", () => {
   const now = Date.parse("2026-09-26T20:00:00Z");

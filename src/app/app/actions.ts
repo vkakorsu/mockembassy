@@ -3,6 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { after } from "next/server";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { CaseProfile } from "@/lib/domain/case";
 import { ExtractedFacts } from "@/lib/domain/draft";
@@ -62,6 +63,19 @@ function scanDraft(raw: string | undefined, visaType: "F1" | "B1B2"): Record<str
   } catch {
     return {};
   }
+}
+
+/** Tick or untick "in my folder" on the What to bring list. */
+export async function setPacked(caseId: string, itemId: string, isPacked: boolean) {
+  const { supabase } = await requireUser();
+  const caseRow = await getCase(supabase, caseId);
+  if (!caseRow) throw new Error("Case not found");
+  const id = z.string().regex(/^[a-z_]{1,40}$/).parse(itemId);
+  const current = new Set<string>(caseRow.checklist_packed ?? []);
+  if (isPacked) current.add(id);
+  else current.delete(id);
+  await createServiceClient().from("cases").update({ checklist_packed: [...current] }).eq("id", caseId);
+  revalidatePath(`/app/cases/${caseId}`);
 }
 
 export async function setInterviewDate(caseId: string, formData: FormData) {

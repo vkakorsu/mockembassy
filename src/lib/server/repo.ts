@@ -18,6 +18,8 @@ export interface CaseRow {
   identity_locked_at: string | null;
   interview_at: string | null;
   draft_profile: Record<string, unknown>;
+  /** What to bring: item ids the applicant ticked as "in my folder". */
+  checklist_packed: string[];
   created_at: string;
 }
 
@@ -123,4 +125,26 @@ export async function canStartSession(
   // A free session needs the free allowance; a paid one needs the pass.
   if (session.is_free !== (ent.kind === "free")) return { ok: false, reason: "Your allowance changed. Go back and start again." };
   return { ok: true };
+}
+
+/**
+ * What the account can still use, for the top bar: credits summed over the
+ * user's cases (credits belong to a case, but most accounts have one), and
+ * the name of the most recent pack.
+ */
+export async function accountCredits(db: SupabaseClient, userId: string) {
+  const { data: cases } = await db.from("cases").select("id, passes(plan, purchased_at, refunded_at)").eq("user_id", userId);
+  const list = cases ?? [];
+  const balances = await Promise.all(list.map((c) => caseCredits(db, c.id)));
+  const packs = list
+    .flatMap((c) => (c.passes ?? []) as { plan: string; purchased_at: string; refunded_at: string | null }[])
+    .filter((p) => !p.refunded_at)
+    .sort((a, b) => b.purchased_at.localeCompare(a.purchased_at));
+  return {
+    plan: packs[0]?.plan ?? null,
+    interviews: balances.reduce((n, b) => n + b.interviews, 0),
+    drills: balances.reduce((n, b) => n + b.drills, 0),
+    /** Where "Get more" goes: the only case's buy page, or the case list. */
+    buyHref: list.length === 1 ? `/app/cases/${list[0].id}/pass` : "/app",
+  };
 }

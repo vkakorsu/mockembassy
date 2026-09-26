@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { countdownLabel, daysUntil } from "@/components/app/countdown";
+import { countdownLabel, daysUntil } from "@/lib/countdown";
 import { NewCaseForm } from "@/components/app/new-case-form";
 import { Card, Notice, PageTitle } from "@/components/app/ui";
 import { requireUser } from "@/lib/server/auth";

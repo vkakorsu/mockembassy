@@ -1,16 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { reportOutcome, setInterviewDate, startDrill, startSession } from "@/app/app/actions";
+import { reportOutcome, setInterviewDate, setPacked, startDrill, startSession } from "@/app/app/actions";
 import { Button, Card, Field, inputCls, Notice, PageTitle } from "@/components/app/ui";
-import { Countdown, daysUntil } from "@/components/app/countdown";
-import { Checklist } from "@/components/case-report";
+import { Countdown } from "@/components/app/countdown";
+import { daysUntil } from "@/lib/countdown";
+import { PackingList } from "@/components/app/packing-list";
 import { MODE_INFO } from "@/lib/modes";
 import { scanCase } from "@/lib/domain/case-scan";
 import { whatToBring } from "@/lib/domain/checklist";
 import { probeStatus } from "@/lib/domain/director";
 import { fillTemplate, isFillable, probesFor } from "@/lib/domain/probes";
 import { requireUser } from "@/lib/server/auth";
-import { caseCredits, caseEntitlement, getCase, latestProfile, pastSessions } from "@/lib/server/repo";
+import { caseEntitlement, getCase, latestProfile, pastSessions } from "@/lib/server/repo";
 import { readiness, readinessTopics } from "@/lib/domain/readiness";
 import { formatDate, modeLabel } from "@/lib/labels";
 
@@ -36,7 +37,7 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
   const caseRow = await getCase(supabase, id);
   if (!caseRow) notFound();
 
-  const [current, history, ent, { data: sessions }, credits, { data: docs }] = await Promise.all([
+  const [current, history, ent, { data: sessions }, { data: docs }] = await Promise.all([
     latestProfile(supabase, id),
     pastSessions(supabase, id),
     caseEntitlement(supabase, caseRow),
@@ -48,7 +49,6 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
       .not("started_at", "is", null)
       .order("created_at", { ascending: false })
       .limit(20),
-    caseCredits(supabase, id),
     supabase.from("documents").select("kind").eq("case_id", id),
   ]);
 
@@ -79,7 +79,7 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
       <Notice code={notice} />
       <div className="flex flex-wrap items-start justify-between gap-4">
         <PageTitle eyebrow={caseRow.visa_type === "F1" ? "F-1 student" : "B1/B2 visitor"} title={caseRow.applicant_name} />
-        <Countdown interviewAt={caseRow.interview_at} caseId={id} days={daysToGo} />
+        <Countdown interviewAt={caseRow.interview_at} days={daysToGo} setDate={setInterviewDate.bind(null, id)} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
@@ -143,6 +143,40 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
             )}
           </Card>
 
+          <Card>
+            <h2 className="font-display text-2xl uppercase">Sessions</h2>
+            {(sessions ?? []).length === 0 ? (
+              <p className="mt-2 text-sm text-muted">No sessions yet.</p>
+            ) : (
+              <ul className="mt-4 divide-y divide-line">
+                {(sessions ?? []).map((s) => {
+                  const o = s.outcome ? OUTCOME[s.outcome] : null;
+                  const officer = (s.plan as { officer?: { name?: string } })?.officer?.name;
+                  return (
+                    <li key={s.id} className="flex items-center justify-between gap-4 py-3 text-sm">
+                      <span>
+                        <span className="font-medium">{officer}</span>{" "}
+                        <span className="text-muted">
+                          · {modeLabel(s.mode, s.is_free)} · {formatDate(s.created_at)}
+                        </span>
+                      </span>
+                      <span className="flex items-center gap-3">
+                        {o && <span className={`rounded-[3px] px-2 py-0.5 text-xs ${o.cls}`}>{o.label}</span>}
+                        {s.ended_at ? (
+                          <Link className="underline-offset-4 hover:underline" href={`/app/sessions/${s.id}/debrief`}>
+                            Debrief
+                          </Link>
+                        ) : (
+                          <span className="text-muted">Unfinished</span>
+                        )}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Card>
+
           {toFix.length > 0 && (
             <Card>
               <h2 className="font-display text-2xl uppercase">Answers to fix</h2>
@@ -184,40 +218,6 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
               </ul>
             </Card>
           )}
-
-          <Card>
-            <h2 className="font-display text-2xl uppercase">Sessions</h2>
-            {(sessions ?? []).length === 0 ? (
-              <p className="mt-2 text-sm text-muted">No sessions yet.</p>
-            ) : (
-              <ul className="mt-4 divide-y divide-line">
-                {(sessions ?? []).map((s) => {
-                  const o = s.outcome ? OUTCOME[s.outcome] : null;
-                  const officer = (s.plan as { officer?: { name?: string } })?.officer?.name;
-                  return (
-                    <li key={s.id} className="flex items-center justify-between gap-4 py-3 text-sm">
-                      <span>
-                        <span className="font-medium">{officer}</span>{" "}
-                        <span className="text-muted">
-                          · {modeLabel(s.mode, s.is_free)} · {formatDate(s.created_at)}
-                        </span>
-                      </span>
-                      <span className="flex items-center gap-3">
-                        {o && <span className={`rounded-[3px] px-2 py-0.5 text-xs ${o.cls}`}>{o.label}</span>}
-                        {s.ended_at ? (
-                          <Link className="underline-offset-4 hover:underline" href={`/app/sessions/${s.id}/debrief`}>
-                            Debrief
-                          </Link>
-                        ) : (
-                          <span className="text-muted">Unfinished</span>
-                        )}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </Card>
         </div>
 
         <div className="space-y-6">
@@ -239,33 +239,15 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
           {current && (
             <Card>
               <h2 className="font-display text-2xl uppercase">What to bring</h2>
-              <p className="mt-1 text-sm text-muted">Built from your confirmed facts. Ticked items are uploaded here; bring the originals.</p>
-              <Checklist items={whatToBring(current.profile)} uploaded={(docs ?? []).map((d) => d.kind as string)} />
+              <p className="mt-1 text-sm text-muted">Built from your confirmed facts. Tick each original as it goes into your folder.</p>
+              <PackingList
+                items={whatToBring(current.profile)}
+                uploaded={(docs ?? []).map((d) => d.kind as string)}
+                packed={caseRow.checklist_packed ?? []}
+                setPacked={setPacked.bind(null, id)}
+              />
             </Card>
           )}
-
-          <Card>
-            <h2 className="font-display text-2xl uppercase">Interviews left</h2>
-            <p className="font-display mt-2 text-4xl tabular">
-              {credits.interviews} <span className="text-base text-muted">interviews</span> · {credits.drills}{" "}
-              <span className="text-base text-muted">drills</span>
-            </p>
-            {credits.expiresAt && <p className="mt-1 text-xs text-muted">Use by {credits.expiresAt.toDateString()}.</p>}
-            <Link href={`/app/cases/${id}/pass`} className="mt-3 inline-block text-sm underline underline-offset-4">
-              {credits.interviews || credits.drills ? "Get more" : "Get interviews"}
-            </Link>
-          </Card>
-
-          <Card>
-            <h2 id="interview-date" className="scroll-mt-6 font-display text-2xl uppercase">
-              Interview date
-            </h2>
-            <form action={setInterviewDate.bind(null, id)} className="mt-4 flex gap-2">
-              <input name="interviewDate" type="date" required defaultValue={interview ? interview.toISOString().slice(0, 10) : ""} className={inputCls} />
-              <Button variant="ghost">Save</Button>
-            </form>
-            <p className="mt-2 text-xs text-muted">For your countdown. It doesn&rsquo;t affect what you can use.</p>
-          </Card>
 
           {interviewPassed && (
             <Card>
