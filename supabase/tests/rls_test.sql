@@ -20,8 +20,6 @@ declare n int;
 begin
   select count(*) into n from public.cases;
   if n <> 1 then raise exception 'user A sees % cases, expected 1', n; end if;
-  select count(*) into n from public.waitlist;
-  if n <> 0 then raise exception 'waitlist visible to users'; end if;
 
   -- A can't read B's case
   select count(*) into n from public.cases where user_id = '00000000-0000-0000-0000-00000000000b';

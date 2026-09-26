@@ -12,7 +12,6 @@ const nav = [
   { href: "/admin/payments", label: "Payments" },
   { href: "/admin/quality", label: "Session quality" },
   { href: "/admin/outcomes", label: "Real outcomes" },
-  { href: "/admin/waitlist", label: "Waitlist" },
   { href: "/admin/audit", label: "Audit log" },
 ];
 

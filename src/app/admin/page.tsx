@@ -11,9 +11,7 @@ export default async function AdminOverview() {
   const now = nowMs();
   const since14 = daysAgo(13, now).slice(0, 10);
 
-  const [waitlist, waitlist7, users, users7, cases, sessionsRes, passesRes, outcomesRes, failedDebriefs] = await Promise.all([
-    db.from("waitlist").select("id", { count: "exact", head: true }),
-    db.from("waitlist").select("id", { count: "exact", head: true }).gte("created_at", daysAgo(7, now)),
+  const [users, users7, cases, sessionsRes, passesRes, outcomesRes, failedDebriefs, recentRes] = await Promise.all([
     db.from("profiles").select("id", { count: "exact", head: true }),
     db.from("profiles").select("id", { count: "exact", head: true }).gte("created_at", daysAgo(7, now)),
     db.from("cases").select("id", { count: "exact", head: true }),
@@ -21,6 +19,7 @@ export default async function AdminOverview() {
     db.from("passes").select("plan, amount_pesewas, purchased_at, refunded_at, case_id").limit(20000),
     db.from("outcomes").select("result").limit(20000),
     db.from("sessions").select("id", { count: "exact", head: true }).eq("debrief_status", "failed").gte("created_at", daysAgo(7, now)),
+    db.from("profiles").select("id, email, phone_e164, role, created_at").order("created_at", { ascending: false }).limit(5),
   ]);
 
   const sessions = sessionsRes.data ?? [];
@@ -44,53 +43,64 @@ export default async function AdminOverview() {
     byPlan.set(p.plan, { n: cur.n + 1, gross: cur.gross + p.amount_pesewas });
   }
 
-  const practisingCases = new Set(sessions.map((s) => s.case_id));
-  const payingCases = new Set(paid.map((p) => p.case_id));
-  const converted = [...practisingCases].filter((c) => payingCases.has(c)).length;
+  const practising = new Set(sessions.map((s) => s.case_id));
+  const paying = new Set(paid.map((p) => p.case_id));
+  const converted = [...practising].filter((c) => paying.has(c)).length;
 
   const outcomes = outcomesRes.data ?? [];
   const approved = outcomes.filter((o) => o.result === "approved").length;
 
   return (
     <>
-      <PageHead title="Overview">Live numbers from the database. Revenue excludes refunds and comped passes, and is shown VAT-inclusive.</PageHead>
+      <PageHead title="Overview">Everything here is live from the database. Money is in cedis, VAT included, after refunds.</PageHead>
 
       <div className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Stat label="Waitlist" value={count(waitlist)} sub={`+${count(waitlist7)} in 7 days`} />
-        <Stat label="Users" value={count(users)} sub={`+${count(users7)} in 7 days`} />
-        <Stat label="Sessions" value={byDay.get(today) ?? 0} sub={`today · ${sessions7} in 7 days`} />
-        <Stat label="Revenue, 30 days" value={ghs(revenue30)} sub={`${ghs(revenueAll)} all time`} />
+        <Stat label="Accounts" value={count(users)} sub={`people signed up · ${count(users7)} new this week`} />
+        <Stat label="Applicants" value={count(cases)} sub="cases created (one per person going to an interview)" />
+        <Stat label="Mock interviews" value={byDay.get(today) ?? 0} sub={`today · ${sessions7} this week`} />
+        <Stat label="Sales, last 30 days" value={ghs(revenue30)} sub={`${ghs(revenueAll)} since launch`} />
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
-        <DailyBars label="Interview sessions per day, last 14 days" data={[...byDay].map(([day, value]) => ({ day, value }))} />
+        <div className="relative">
+          <DailyBars label="Mock interviews per day, last 14 days" data={[...byDay].map(([day, value]) => ({ day, value }))} />
+          {sessions.length === 0 && (
+            <p className="pointer-events-none absolute inset-x-0 top-1/2 text-center text-sm text-muted">No mock interviews yet.</p>
+          )}
+        </div>
         <div className="grid grid-cols-2 gap-4">
-          <Stat label="Cases" value={count(cases)} />
           <Stat
-            label="Practising → paid"
-            value={practisingCases.size ? `${Math.round((converted / practisingCases.size) * 100)}%` : "–"}
-            sub={`${converted} of ${practisingCases.size} cases, 14 days`}
+            label="Bought a pass"
+            value={practising.size ? `${Math.round((converted / practising.size) * 100)}%` : "–"}
+            sub={`of applicants who practised in the last 14 days (${converted} of ${practising.size})`}
           />
-          <Stat label="Refunds" value={refunded} />
-          <Stat label="Failed debriefs" value={count(failedDebriefs)} sub="7 days" />
+          <Stat label="Real results reported" value={outcomes.length} sub={outcomes.length ? `${approved} approved` : "after their embassy interview"} />
+          <Stat label="Refunds" value={refunded} sub="all time" />
+          <Stat label="Debriefs that failed" value={count(failedDebriefs)} sub="this week · should stay at 0" />
         </div>
       </div>
 
-      <Section title="Passes by plan">
+      <Section title="Newest accounts">
         <Table
-          head={["Plan", "Sold", "Gross"]}
-          rows={[...byPlan].sort((a, b) => b[1].gross - a[1].gross).map(([plan, v]) => [plan, v.n, ghs(v.gross)])}
-          empty="No paid passes yet."
+          head={["Email / phone", "Role", "Joined", ""]}
+          rows={(recentRes.data ?? []).map((u) => [
+            u.email ?? (u.phone_e164 ? `+${String(u.phone_e164).replace(/^\+/, "")}` : "—"),
+            u.role,
+            new Date(u.created_at).toLocaleString(),
+            <Link key="l" href={`/admin/users/${u.id}`} className="underline underline-offset-4">
+              Open
+            </Link>,
+          ])}
+          empty="No accounts yet."
         />
       </Section>
 
-      <Section title="Reported interview results" note="What users told us after their real interview. Self-reported and self-selected; see Real outcomes.">
-        <p className="text-sm">
-          {outcomes.length
-            ? `${approved} approved of ${outcomes.length} reported (${Math.round((approved / outcomes.length) * 100)}%).`
-            : "No results reported yet."}{" "}
-          <Link href="/admin/outcomes" className="underline underline-offset-4">Details</Link>
-        </p>
+      <Section title="Sales by plan">
+        <Table
+          head={["Plan", "Sold", "Total"]}
+          rows={[...byPlan].sort((a, b) => b[1].gross - a[1].gross).map(([plan, v]) => [plan, v.n, ghs(v.gross)])}
+          empty="No paid passes yet."
+        />
       </Section>
     </>
   );
