@@ -8,6 +8,7 @@ import { CaseProfile } from "@/lib/domain/case";
 import { planSession, type SessionMode } from "@/lib/domain/director";
 import { FREE_MOCK_SECONDS, type PlanId } from "@/lib/domain/entitlement";
 import { moveInterviewDate } from "@/lib/domain/pass";
+import { MAX_CASES_PER_ACCOUNT, sameApplicant } from "@/lib/domain/identity";
 import { probesFor } from "@/lib/domain/probes";
 import { env, features } from "@/lib/env";
 import { requireUser } from "@/lib/server/auth";
@@ -29,6 +30,8 @@ const NewCase = z.object({
 export async function createCase(formData: FormData) {
   const { user, supabase } = await requireUser();
   const input = NewCase.parse(Object.fromEntries(formData));
+  const { count } = await supabase.from("cases").select("id", { count: "exact", head: true });
+  if ((count ?? 0) >= MAX_CASES_PER_ACCOUNT) redirect("/app?notice=case-limit");
   const { data, error } = await supabase
     .from("cases")
     .insert({
@@ -192,6 +195,14 @@ export async function confirmProfile(caseId: string, _prev: ConfirmState, f: For
   if (!parsed.success) {
     const first = parsed.error.issues[0];
     return { error: `Please check "${first.path.join(" → ")}": ${first.message}` };
+  }
+  if (caseRow.identity_locked_at && current) {
+    const check = sameApplicant(current.profile, parsed.data);
+    if (!check.ok) {
+      return {
+        error: `The ${check.field} can't change: this case and its pass belong to one applicant. If something was entered wrongly, contact support. For a different person, create a new case.`,
+      };
+    }
   }
   const { error } = await supabase
     .from("case_profiles")

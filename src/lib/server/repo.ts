@@ -62,6 +62,11 @@ export async function caseEntitlement(db: SupabaseClient, caseRow: CaseRow, now 
     db.from("passes").select("*").eq("case_id", caseRow.id),
     db.from("sessions").select("created_at, is_free").eq("case_id", caseRow.id),
   ]);
+  const { count: freeUsedOnAccount } = await db
+    .from("sessions")
+    .select("id, cases!inner(user_id)", { count: "exact", head: true })
+    .eq("is_free", true)
+    .eq("cases.user_id", caseRow.user_id);
   const interview = caseRow.interview_at ? new Date(caseRow.interview_at) : now;
   const rows: PassRow[] = (passes ?? []).map((p) => ({
     plan: p.plan as PlanId,
@@ -79,7 +84,8 @@ export async function caseEntitlement(db: SupabaseClient, caseRow: CaseRow, now 
     passes: rows,
     fullSessionsToday: full.filter((d) => d >= startOfDay).length,
     fullSessionsSince: (since) => full.filter((d) => d >= since).length,
-    freeSessionsUsed: (sessions ?? []).filter((s) => s.is_free).length,
+    // One free mock per account (FREE_MOCKS_PER_ACCOUNT), not per case.
+    freeSessionsUsed: freeUsedOnAccount ?? 0,
     now,
   });
 }

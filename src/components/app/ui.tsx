@@ -53,6 +53,7 @@ const NOTICES: Record<string, string> = {
   "date-in-past": "That date is in the past.",
   "outcome-thanks": "Thank you. Your result helps make the officer more realistic for the next applicant.",
   paid: "Payment received. Your pass is active.",
+  "case-limit": "You've reached the limit of 5 applicant cases on one account. Contact us if you're an agency or school.",
   "payment-pending": "We're still confirming your payment. This page will update shortly.",
 };
 

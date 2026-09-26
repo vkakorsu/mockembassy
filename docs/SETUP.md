@@ -5,7 +5,7 @@ The app runs without any keys. Each feature shows a "not configured" state until
 ## 1. Supabase
 
 **Status (26 Sep 2026):**
-- Project **`okwan`** (ref `itvgkkwsxyobkwkrrrwg`, eu-west-1) has all six migrations applied, and an admin invite is set for the owner's email. The security advisors are clean apart from intentional notes: `asked_questions`, `admin_audit_log` and `admin_invites` are server-only.
+- Project **`okwan`** (ref `itvgkkwsxyobkwkrrrwg`, eu-west-1) has all eight migrations applied, and an admin invite is set for the owner's email. The security advisors are clean apart from intentional notes: `asked_questions`, `admin_audit_log` and `admin_invites` are server-only.
 - **Remaining steps:** set the environment variables in Vercel (step 1) and enable Phone auth (step 3). Step 2 is already done for this project.
 
 
@@ -25,8 +25,8 @@ The app runs without any keys. Each feature shows a "not configured" state until
 
 ## Admin dashboard (`/admin`)
 - **Apply migration `20260926000005_admin.sql`** (the audit log). Until it's applied, sensitive actions are blocked: viewing case facts, refunds, comped passes and role changes.
-- **Make yourself an admin.** Sign in once, then run this in the Supabase SQL editor:
-  `update public.profiles set role = 'admin' where phone_e164 like '%24XXXXXXX';`
+- **Make someone an admin** in the Supabase SQL editor:
+  `insert into public.admin_invites (email) values ('you@example.com');` (becomes admin on sign-up), or for an existing account `update public.profiles set role = 'admin' where email = 'you@example.com';`
 - **Access control:**
   - Anyone who isn't an admin gets a 404 at `/admin`.
   - Every sensitive action needs a written reason, which is stored in the audit log.

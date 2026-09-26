@@ -164,3 +164,33 @@ describe("mergeGrades", () => {
     expect(mergeGrades(run, null)).toEqual({ merged: run, agreement: null });
   });
 });
+
+import { sameApplicant } from "../identity";
+
+describe("sameApplicant", () => {
+  const next = (patch: (p: typeof amaF1) => void) => {
+    const p = structuredClone(amaF1);
+    patch(p);
+    return p;
+  };
+
+  it("allows ordinary corrections to the same person", () => {
+    expect(sameApplicant(amaF1, next((p) => (p.applicant.age += 1))).ok).toBe(true);
+    expect(sameApplicant(amaF1, next((p) => (p.study!.school = "Ohio State University"))).ok).toBe(true);
+    expect(sameApplicant(amaF1, next((p) => (p.funding.liquidFundsUsd = 60000))).ok).toBe(true);
+  });
+
+  it("blocks swapping in a different applicant", () => {
+    expect(sameApplicant(amaF1, next((p) => (p.applicant.firstName = "Kwame")))).toEqual({ ok: false, field: "first name" });
+    expect(sameApplicant(amaF1, next((p) => (p.applicant.age = 31)))).toEqual({ ok: false, field: "age" });
+    expect(
+      sameApplicant(
+        amaF1,
+        next((p) => {
+          p.study!.school = "Boston University";
+          p.study!.program = "MBA";
+        }),
+      ),
+    ).toEqual({ ok: false, field: "school and program" });
+  });
+});

@@ -11,7 +11,7 @@ export default async function AdminQuality() {
   const { db } = await requireAdmin();
   const since = daysAgo(30);
   const [{ data: sessionRows }, { data: probeRows }] = await Promise.all([
-    db.from("sessions").select("plan, outcome, realism_rating, debrief_status, started_at, ended_at, mode").gte("created_at", since).limit(20000),
+    db.from("sessions").select("case_id, client_fp, plan, outcome, realism_rating, debrief_status, started_at, ended_at, mode").gte("created_at", since).limit(20000),
     db.from("probe_results").select("probe_id, quality").gte("created_at", since).limit(50000),
   ]);
   const sessions = sessionRows ?? [];
@@ -35,6 +35,16 @@ export default async function AdminQuality() {
     if (r.quality === "contradiction") cur.contradiction++;
     probes.set(r.probe_id, cur);
   }
+  const byCase = new Map<string, { fps: Set<string>; n: number }>();
+  for (const s of sessions) {
+    if (!s.client_fp) continue;
+    const cur = byCase.get(s.case_id) ?? { fps: new Set<string>(), n: 0 };
+    cur.fps.add(s.client_fp);
+    cur.n++;
+    byCase.set(s.case_id, cur);
+  }
+  const sharing = [...byCase].filter(([, v]) => v.fps.size >= 3).sort((a, b) => b[1].fps.size - a[1].fps.size);
+
   const label = (id: string) => {
     try {
       return getProbe(id).entry[0];
@@ -74,6 +84,21 @@ export default async function AdminQuality() {
               pct(v.contradiction, v.n),
             ])}
           empty="No graded answers yet."
+        />
+      </Section>
+
+      <Section
+        title="Possible shared accounts"
+        note="Cases practised from 3 or more different network + browser combinations in 30 days. A signal to look at, not proof: people also switch between home Wi-Fi, mobile data and work."
+      >
+        <Table
+          head={["Case", "Different places", "Sessions"]}
+          rows={sharing.map(([caseId, v]) => [
+            <span key="c" className="font-mono text-xs">{caseId.slice(0, 8)}</span>,
+            v.fps.size,
+            v.n,
+          ])}
+          empty="Nothing unusual."
         />
       </Section>
 

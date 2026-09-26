@@ -104,7 +104,9 @@ export function SignInForm({ url, publishableKey, next = "/app" }: Cfg) {
   const [error, setError] = useState<string | null>(null);
   const supabase = createClient(url, publishableKey);
 
-  const done = () => {
+  const done = async () => {
+    // One active login per account: signing in here signs out other devices.
+    await supabase.auth.signOut({ scope: "others" });
     router.replace(next);
     router.refresh();
   };
@@ -117,7 +119,7 @@ export function SignInForm({ url, publishableKey, next = "/app" }: Cfg) {
     const { error } = await supabase.auth.signInWithPassword({ email: String(f.get("email")).trim(), password: String(f.get("password")) });
     setBusy(false);
     if (error) setError(friendly(error.message));
-    else done();
+    else await done();
   }
 
   async function sendCode(e: React.FormEvent) {
@@ -138,7 +140,7 @@ export function SignInForm({ url, publishableKey, next = "/app" }: Cfg) {
     const { error } = await supabase.auth.verifyOtp({ phone: toE164(phone), token, type: "sms" });
     setBusy(false);
     if (error) setError(friendly(error.message));
-    else done();
+    else await done();
   }
 
   return (

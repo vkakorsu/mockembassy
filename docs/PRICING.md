@@ -97,7 +97,20 @@ All prices include **20% VAT**, and every one can be paid with MTN MoMo, Telecel
 7. **Refunds:** at most one full mock used, within 7 days of purchase, and one refund per phone number or Case.
 8. **Expert sessions** can't be abused this way. They're booked slots, sold only when there is a free slot before the interview date (see [`EXPERTS.md`](EXPERTS.md)).
 
-**Worst-case cost of a liar:** 60 days × 3 mocks a day ≈ GHS 400 in COGS, and only if the user practises every single day. That's slightly above the Pass price and very rare. The realistic abuser costs far less, because practising daily for two months is tiring. We should monitor it (usage percentiles per pass in PostHog). If the 99th percentile is ever unprofitable, lower the daily cap for passes without proof to 2 mocks.
+**What's enforced in code (26 Sep 2026):**
+- **One free mock per account,** not per case. Otherwise creating new cases would give unlimited free mocks.
+- **At most 5 applicant cases per account.**
+- **One active login:** signing in signs out every other device, so a shared password keeps kicking the other person out.
+- **One live interview at a time** per account.
+- **The applicant's identity locks after the first full mock:** first name, age (±1), visa type, and school and program together. A friend can't overwrite the case with their details.
+- **A per-session cost cap:** each live session's token expires at the planned length plus 3 minutes.
+- **Up to 3 full mocks a day, within the pass window** (60 days without appointment proof).
+- **A sharing flag:** the admin quality page lists cases used from 3 or more different network and browser combinations.
+
+**Worst-case cost of an abuser:** assume 3 mocks a day for 60 days, each running to the token cap of about 7 minutes.
+- Gemini 3.8 Live audio costs about $0.005 per minute in and $0.018 per minute out. Grading adds under $0.01 per mock.
+- That's about $0.09 per mock, or about **$16 (≈ GHS 185)** in total.
+- The Pass nets about GHS 284 after VAT and fees, so **even the worst abuser stays profitable**. A realistic user costs a few cedis.
 
 ---
 

@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { createCase } from "@/app/app/actions";
-import { Button, Card, Field, inputCls, PageTitle } from "@/components/app/ui";
+import { Button, Card, Field, inputCls, Notice, PageTitle } from "@/components/app/ui";
 import { requireUser } from "@/lib/server/auth";
 
-export default async function Dashboard() {
+export default async function Dashboard(props: PageProps<"/app">) {
+  const { notice } = await props.searchParams;
   const { supabase } = await requireUser();
   const { data: cases } = await supabase
     .from("cases")
@@ -12,6 +13,7 @@ export default async function Dashboard() {
 
   return (
     <>
+      <Notice code={notice} />
       <PageTitle eyebrow="Your cases" title="Who's going to the window?">
         One case per applicant and interview. Your pass, documents and practice history live inside it.
       </PageTitle>
