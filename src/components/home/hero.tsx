@@ -19,9 +19,9 @@ export function Hero({ lines }: { lines: WindowLine[] }) {
             <Link href="/signup" className="rounded-[3px] bg-ink px-6 py-3.5 font-semibold text-on-ink hover:bg-stamp">
               Start with a free mock
             </Link>
-            <a href="#how" className="font-semibold underline decoration-2 underline-offset-[6px] hover:text-stamp">
-              How it works
-            </a>
+            <Link href="/scan" className="font-semibold underline decoration-2 underline-offset-[6px] hover:text-stamp">
+              Free Case Scan, no signup
+            </Link>
           </div>
           <p className="label mt-10 text-muted">F-1 · B1/B2 · Built for Ghanaian applicants · Pay with MoMo</p>
         </div>

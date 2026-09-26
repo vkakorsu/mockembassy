@@ -2,7 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { activatePassNow, reportOutcome, setInterviewDate, startDrill, startSession } from "@/app/app/actions";
 import { Button, Card, Field, inputCls, Notice, PageTitle } from "@/components/app/ui";
+import { Checklist } from "@/components/case-report";
 import { scanCase } from "@/lib/domain/case-scan";
+import { whatToBring } from "@/lib/domain/checklist";
 import { probeStatus } from "@/lib/domain/director";
 import { fillTemplate, isFillable, probesFor } from "@/lib/domain/probes";
 import { passWindow } from "@/lib/domain/pass";
@@ -32,13 +34,13 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
   const caseRow = await getCase(supabase, id);
   if (!caseRow) notFound();
 
-  const [current, history, ent, { data: sessions }, { data: passes }, { count: docCount }] = await Promise.all([
+  const [current, history, ent, { data: sessions }, { data: passes }, { data: docs }] = await Promise.all([
     latestProfile(supabase, id),
     pastSessions(supabase, id),
     caseEntitlement(supabase, caseRow),
     supabase.from("sessions").select("id, mode, outcome, is_free, created_at, ended_at, plan").eq("case_id", id).order("created_at", { ascending: false }).limit(20),
     supabase.from("passes").select("*").eq("case_id", id).is("refunded_at", null),
-    supabase.from("documents").select("id", { count: "exact", head: true }).eq("case_id", id),
+    supabase.from("documents").select("kind").eq("case_id", id),
   ]);
 
   const flags = current ? scanCase(current.profile) : [];
@@ -204,7 +206,7 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
           <Card>
             <h2 className="font-display text-2xl uppercase">Your facts</h2>
             <p className="mt-1 text-sm text-muted">
-              {current ? `Confirmed, version ${current.version}.` : "Not confirmed yet."} {docCount ?? 0} document(s) uploaded.
+              {current ? `Confirmed, version ${current.version}.` : "Not confirmed yet."} {docs?.length ?? 0} document(s) uploaded.
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
               <Link href={`/app/cases/${id}/documents`} className="rounded-[3px] border border-line px-4 py-2 text-sm hover:border-fg/40">
@@ -215,6 +217,14 @@ export default async function CasePage(props: PageProps<"/app/cases/[id]">) {
               </Link>
             </div>
           </Card>
+
+          {current && (
+            <Card>
+              <h2 className="font-display text-2xl uppercase">What to bring</h2>
+              <p className="mt-1 text-sm text-muted">Built from your confirmed facts. Ticked items are uploaded here; bring the originals.</p>
+              <Checklist items={whatToBring(current.profile)} uploaded={(docs ?? []).map((d) => d.kind as string)} />
+            </Card>
+          )}
 
           <Card>
             <h2 className="font-display text-2xl uppercase">Interview date</h2>

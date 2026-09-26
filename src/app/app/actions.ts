@@ -5,6 +5,7 @@ import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { CaseProfile } from "@/lib/domain/case";
+import { ExtractedFacts } from "@/lib/domain/draft";
 import { NOTE_PROBE_PREFIX, planDrill, planSession, type SessionMode } from "@/lib/domain/director";
 import type { CaseNote, NoteCategory } from "@/lib/domain/notes";
 import { FREE_MOCK_SECONDS, type PlanId } from "@/lib/domain/entitlement";
@@ -26,6 +27,8 @@ const NewCase = z.object({
   visaType: z.enum(["F1", "B1B2"]),
   applicantName: z.string().trim().min(1).max(80),
   interviewDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal("").transform(() => undefined)),
+  /** Answers from the free Case Scan (src/lib/domain/quick-scan.ts), as a draft to confirm. */
+  scan: z.string().max(20_000).optional(),
 });
 
 export async function createCase(formData: FormData) {
@@ -40,11 +43,25 @@ export async function createCase(formData: FormData) {
       visa_type: input.visaType,
       applicant_name: input.applicantName,
       interview_at: input.interviewDate ? `${input.interviewDate}T09:00:00Z` : null,
+      draft_profile: scanDraft(input.scan, input.visaType),
     })
     .select("id")
     .single();
   if (error) throw error;
   redirect(`/app/cases/${data.id}`);
+}
+
+function scanDraft(raw: string | undefined, visaType: "F1" | "B1B2"): Record<string, unknown> {
+  if (!raw) return {};
+  try {
+    const parsed = ExtractedFacts.safeParse(JSON.parse(raw));
+    if (!parsed.success || (parsed.data.visaType && parsed.data.visaType !== visaType)) return {};
+    // Only profile facts; nothing that looks like a document reading.
+    const { applicant, study, visit, funding, ties, history, usContacts } = parsed.data;
+    return JSON.parse(JSON.stringify({ applicant, study, visit, funding, ties, history, usContacts }));
+  } catch {
+    return {};
+  }
 }
 
 export async function setInterviewDate(caseId: string, formData: FormData) {

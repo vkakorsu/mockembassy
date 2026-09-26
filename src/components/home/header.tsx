@@ -3,12 +3,13 @@ import { AuthNav } from "@/components/auth-nav";
 import { Logo } from "@/components/logo";
 import { env } from "@/lib/env";
 
+// Absolute so they work from other pages (/scan) too.
 const links = [
-  { href: "#how", label: "How it works" },
-  { href: "#engine", label: "The officer" },
-  { href: "#experts", label: "Experts" },
-  { href: "#pricing", label: "Pricing" },
-  { href: "#faq", label: "FAQ" },
+  { href: "/scan", label: "Free Case Scan" },
+  { href: "/#how", label: "How it works" },
+  { href: "/#engine", label: "The officer" },
+  { href: "/#pricing", label: "Pricing" },
+  { href: "/#faq", label: "FAQ" },
 ];
 
 export function Header() {

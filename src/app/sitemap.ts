@@ -7,6 +7,7 @@ const CONTENT_UPDATED = new Date("2026-09-26");
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
     { url: site.url, lastModified: CONTENT_UPDATED, changeFrequency: "weekly", priority: 1 },
+    { url: `${site.url}/scan`, lastModified: CONTENT_UPDATED, changeFrequency: "monthly", priority: 0.9 },
     { url: `${site.url}/signup`, lastModified: CONTENT_UPDATED, changeFrequency: "monthly", priority: 0.6 },
   ];
 }

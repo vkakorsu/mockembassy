@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { createCase } from "@/app/app/actions";
-import { Button, Card, Field, inputCls, Notice, PageTitle } from "@/components/app/ui";
+import { NewCaseForm } from "@/components/app/new-case-form";
+import { Card, Notice, PageTitle } from "@/components/app/ui";
 import { requireUser } from "@/lib/server/auth";
 
 export default async function Dashboard(props: PageProps<"/app">) {
@@ -33,21 +33,7 @@ export default async function Dashboard(props: PageProps<"/app">) {
         </div>
         <Card>
           <h2 className="font-display text-2xl uppercase">New case</h2>
-          <form action={createCase} className="mt-5 grid gap-4">
-            <Field label="Applicant's name" hint="As on the passport.">
-              <input name="applicantName" required maxLength={80} className={inputCls} />
-            </Field>
-            <Field label="Visa">
-              <select name="visaType" className={inputCls}>
-                <option value="F1">F-1 student</option>
-                <option value="B1B2">B1/B2 visitor</option>
-              </select>
-            </Field>
-            <Field label="Interview date (if booked)">
-              <input name="interviewDate" type="date" className={inputCls} />
-            </Field>
-            <Button type="submit">Create case</Button>
-          </form>
+          <NewCaseForm />
         </Card>
       </div>
     </>
